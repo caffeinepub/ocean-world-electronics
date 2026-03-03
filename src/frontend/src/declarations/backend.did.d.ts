@@ -27,14 +27,18 @@ export interface Order {
   'customerName' : string,
   'status' : OrderStatus,
   'specialDescription' : string,
+  'courierName' : [] | [string],
   'productId' : string,
+  'courierTrackingNumber' : [] | [string],
   'address' : string,
   'timestamp' : bigint,
   'quantity' : bigint,
   'phone' : string,
 }
-export type OrderStatus = { 'cancelled' : null } |
+export type OrderStatus = { 'shipped' : null } |
+  { 'cancelled' : null } |
   { 'pending' : null } |
+  { 'out_for_delivery' : null } |
   { 'delivered' : null } |
   { 'confirmed' : null };
 export interface Product {
@@ -49,6 +53,11 @@ export interface Product {
   'category' : string,
   'price' : bigint,
 }
+export interface ProductSales {
+  'productId' : string,
+  'productName' : string,
+  'totalQuantity' : bigint,
+}
 export interface UserProfile {
   'name' : string,
   'email' : string,
@@ -57,7 +66,33 @@ export interface UserProfile {
 export type UserRole = { 'admin' : null } |
   { 'user' : null } |
   { 'guest' : null };
+export interface _CaffeineStorageCreateCertificateResult {
+  'method' : string,
+  'blob_hash' : string,
+}
+export interface _CaffeineStorageRefillInformation {
+  'proposed_top_up_amount' : [] | [bigint],
+}
+export interface _CaffeineStorageRefillResult {
+  'success' : [] | [boolean],
+  'topped_up_amount' : [] | [bigint],
+}
 export interface _SERVICE {
+  '_caffeineStorageBlobIsLive' : ActorMethod<[Uint8Array], boolean>,
+  '_caffeineStorageBlobsToDelete' : ActorMethod<[], Array<Uint8Array>>,
+  '_caffeineStorageConfirmBlobDeletion' : ActorMethod<
+    [Array<Uint8Array>],
+    undefined
+  >,
+  '_caffeineStorageCreateCertificate' : ActorMethod<
+    [string],
+    _CaffeineStorageCreateCertificateResult
+  >,
+  '_caffeineStorageRefillCashier' : ActorMethod<
+    [[] | [_CaffeineStorageRefillInformation]],
+    _CaffeineStorageRefillResult
+  >,
+  '_caffeineStorageUpdateGatewayPrincipals' : ActorMethod<[], undefined>,
   '_initializeAccessControlWithSecret' : ActorMethod<[string], undefined>,
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
   'createProduct' : ActorMethod<[Product], undefined>,
@@ -68,8 +103,11 @@ export interface _SERVICE {
   'getCallerUserProfile' : ActorMethod<[], [] | [UserProfile]>,
   'getCallerUserRole' : ActorMethod<[], UserRole>,
   'getMonthlySalesSummary' : ActorMethod<[], Array<MonthlySales>>,
+  'getOrdersByStatus' : ActorMethod<[OrderStatus], Array<Order>>,
   'getOrdersCountByStatus' : ActorMethod<[], Array<[string, bigint]>>,
   'getProduct' : ActorMethod<[string], Product>,
+  'getRecentOrders' : ActorMethod<[bigint], Array<Order>>,
+  'getTopSellingProducts' : ActorMethod<[bigint], Array<ProductSales>>,
   'getTotalOrdersCount' : ActorMethod<[], bigint>,
   'getTotalRevenue' : ActorMethod<[], bigint>,
   'getUserProfile' : ActorMethod<[Principal], [] | [UserProfile]>,
@@ -81,6 +119,7 @@ export interface _SERVICE {
   >,
   'saveCallerUserProfile' : ActorMethod<[UserProfile], undefined>,
   'submitInquiry' : ActorMethod<[string, string, string], undefined>,
+  'updateOrderCourierInfo' : ActorMethod<[string, string, string], undefined>,
   'updateOrderStatus' : ActorMethod<[string, OrderStatus], undefined>,
   'updateProduct' : ActorMethod<[string, Product], undefined>,
 }

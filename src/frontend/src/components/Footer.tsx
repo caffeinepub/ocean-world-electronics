@@ -1,5 +1,13 @@
 import { Link } from "@tanstack/react-router";
-import { Cpu, Mail, MapPin, MessageCircle, Phone, Shield } from "lucide-react";
+import {
+  Cpu,
+  Mail,
+  MapPin,
+  MessageCircle,
+  Package,
+  Phone,
+  Shield,
+} from "lucide-react";
 
 export default function Footer() {
   const year = new Date().getFullYear();
@@ -56,6 +64,7 @@ export default function Footer() {
                 [
                   { to: "/", label: "Home" },
                   { to: "/products", label: "All Products" },
+                  { to: "/about", label: "About Us" },
                   { to: "/contact", label: "Contact Us" },
                   { to: "/admin", label: "Admin Panel" },
                 ] as const
@@ -69,31 +78,38 @@ export default function Footer() {
                   </Link>
                 </li>
               ))}
+            </ul>
+          </div>
+
+          {/* Customer */}
+          <div>
+            <h4 className="font-heading font-semibold text-white mb-4 text-sm uppercase tracking-wider">
+              Customer
+            </h4>
+            <ul className="space-y-2">
               <li>
                 <Link
                   to="/track-order"
                   search={{ phone: undefined }}
-                  className="text-white/70 hover:text-white text-sm transition-colors font-display"
+                  className="text-white/70 hover:text-white text-sm transition-colors font-display flex items-center gap-1.5"
                 >
                   Track Order
                 </Link>
               </li>
-            </ul>
-          </div>
-
-          {/* Categories */}
-          <div>
-            <h4 className="font-heading font-semibold text-white mb-4 text-sm uppercase tracking-wider">
-              Categories
-            </h4>
-            <ul className="space-y-2">
+              <li>
+                <Link
+                  to="/my-orders"
+                  className="text-white/70 hover:text-white text-sm transition-colors font-display flex items-center gap-1.5"
+                >
+                  <Package className="h-3.5 w-3.5" />
+                  My Orders
+                </Link>
+              </li>
               {[
                 "Smartphones",
                 "Headphones & Earbuds",
                 "Cables & Chargers",
                 "Power Banks",
-                "Smart Gadgets",
-                "Accessories",
               ].map((cat) => (
                 <li key={cat}>
                   <Link

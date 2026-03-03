@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
-import { Link, useSearch } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 import {
   Calendar,
   ExternalLink,
@@ -26,12 +26,11 @@ import {
   Package,
   Phone,
   Search,
-  ShoppingBag,
   Star,
   Truck,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { type Order, OrderStatus, type Product } from "../backend.d";
 import OrderStepper from "../components/OrderStepper";
@@ -97,39 +96,27 @@ const COURIER_LINKS: Record<string, string> = {
 };
 
 function getCourierLink(courierName: string): string | null {
-  const key = courierName.toLowerCase().trim();
-  return COURIER_LINKS[key] ?? null;
+  return COURIER_LINKS[courierName.toLowerCase().trim()] ?? null;
 }
 
-interface TrackSearch {
-  phone?: string;
-}
-
-// Per-order feedback form component
 function FeedbackForm({
   orderId,
   onSubmit,
-}: { orderId: string; onSubmit: () => void }) {
+}: {
+  orderId: string;
+  onSubmit: () => void;
+}) {
   const [rating, setRating] = useState(0);
-  const [hoverRating, setHoverRating] = useState(0);
+  const [hover, setHover] = useState(0);
   const [comment, setComment] = useState("");
-  const [submitting, setSubmitting] = useState(false);
 
-  async function handleSubmit() {
+  function handleSubmit() {
     if (rating === 0) {
       toast.error("Please select a rating");
       return;
     }
-    setSubmitting(true);
-    const feedback: OrderFeedback = {
-      orderId,
-      rating,
-      comment,
-      submittedAt: Date.now(),
-    };
-    saveFeedback(feedback);
+    saveFeedback({ orderId, rating, comment, submittedAt: Date.now() });
     toast.success("Thank you for your feedback!");
-    setSubmitting(false);
     onSubmit();
   }
 
@@ -141,17 +128,16 @@ function FeedbackForm({
       <div className="flex items-center gap-1 mb-3">
         {[1, 2, 3, 4, 5].map((n) => (
           <button
-            key={`track-star-${n}`}
+            key={`my-orders-star-${n}`}
             type="button"
             className="focus:outline-none transition-transform hover:scale-110"
-            onMouseEnter={() => setHoverRating(n)}
-            onMouseLeave={() => setHoverRating(0)}
+            onMouseEnter={() => setHover(n)}
+            onMouseLeave={() => setHover(0)}
             onClick={() => setRating(n)}
-            data-ocid={`track.feedback.rating.${n}`}
           >
             <Star
               className={`h-7 w-7 transition-colors ${
-                n <= (hoverRating || rating)
+                n <= (hover || rating)
                   ? "text-yellow-400 fill-yellow-400"
                   : "text-muted-foreground"
               }`}
@@ -170,13 +156,11 @@ function FeedbackForm({
         placeholder="Share your experience (optional)..."
         className="font-display resize-none mb-3"
         rows={2}
-        data-ocid="track.feedback.textarea.1"
       />
       <Button
         onClick={handleSubmit}
-        disabled={submitting || rating === 0}
+        disabled={rating === 0}
         className="btn-ocean h-9 font-display text-sm"
-        data-ocid="track.feedback.submit_button.1"
       >
         <Star className="h-3.5 w-3.5 mr-2" />
         Submit Feedback
@@ -185,7 +169,6 @@ function FeedbackForm({
   );
 }
 
-// Per-order complaint dialog
 function ComplaintSection({
   orderId,
   orderIdx,
@@ -214,7 +197,7 @@ function ComplaintSection({
       status: "open",
     };
     saveComplaint(c);
-    toast.success("Complaint filed successfully. We'll get back to you soon.");
+    toast.success("Complaint filed. We'll get back to you soon.");
     setDialogOpen(false);
     onSubmit();
   }
@@ -230,7 +213,8 @@ function ComplaintSection({
                 : "bg-green-100 text-green-700"
             }`}
           >
-            Complaint {complaint.status === "open" ? "Filed" : "Resolved"}
+            Complaint{" "}
+            {complaint.status === "open" ? "Filed (Open)" : "Resolved"}
           </Badge>
           <span className="text-xs text-muted-foreground font-display">
             {complaint.reason}
@@ -248,17 +232,17 @@ function ComplaintSection({
           size="sm"
           className="text-xs font-display h-7 text-orange-600 border-orange-200 hover:bg-orange-50"
           onClick={() => setDialogOpen(true)}
-          data-ocid={`track.complaint_button.${orderIdx}`}
+          data-ocid={`my_orders.complaint_button.${orderIdx}`}
         >
           Complaint / Return Request
         </Button>
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-md" data-ocid="track.complaint.dialog">
+        <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="font-heading">
-              File a Complaint / Return Request
+              File a Complaint / Return
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
@@ -267,10 +251,7 @@ function ComplaintSection({
                 Reason <span className="text-destructive">*</span>
               </Label>
               <Select value={reason} onValueChange={setReason}>
-                <SelectTrigger
-                  className="h-11 font-display"
-                  data-ocid={`track.complaint.reason.select.${orderIdx}`}
-                >
+                <SelectTrigger className="h-11 font-display">
                   <SelectValue placeholder="Select reason..." />
                 </SelectTrigger>
                 <SelectContent>
@@ -299,10 +280,9 @@ function ComplaintSection({
               <Textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="Describe the issue in detail..."
+                placeholder="Describe the issue..."
                 className="font-display resize-none"
                 rows={3}
-                data-ocid={`track.complaint.description.textarea.${orderIdx}`}
               />
             </div>
           </div>
@@ -311,16 +291,11 @@ function ComplaintSection({
               variant="outline"
               onClick={() => setDialogOpen(false)}
               className="font-display"
-              data-ocid="track.complaint.cancel_button"
             >
               Cancel
             </Button>
-            <Button
-              onClick={handleSubmit}
-              className="btn-ocean font-display"
-              data-ocid={`track.complaint.submit_button.${orderIdx}`}
-            >
-              Submit Complaint
+            <Button onClick={handleSubmit} className="btn-ocean font-display">
+              Submit
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -329,13 +304,10 @@ function ComplaintSection({
   );
 }
 
-export default function TrackOrderPage() {
-  const search = useSearch({ strict: false }) as TrackSearch;
-  const prefilled = search.phone ?? "";
-
-  const [phoneInput, setPhoneInput] = useState(prefilled);
-  const [submittedPhone, setSubmittedPhone] = useState(prefilled);
-  const [hasSearched, setHasSearched] = useState(!!prefilled);
+export default function MyOrdersPage() {
+  const [phoneInput, setPhoneInput] = useState("");
+  const [submittedPhone, setSubmittedPhone] = useState("");
+  const [hasSearched, setHasSearched] = useState(false);
   const [feedbacks, setFeedbacks] = useState<Record<string, OrderFeedback>>(
     () => getFeedbacks(),
   );
@@ -348,13 +320,6 @@ export default function TrackOrderPage() {
   const settings = getStoreSettings();
   const courierInfos = getCourierInfos();
 
-  useEffect(() => {
-    if (prefilled) {
-      setSubmittedPhone(prefilled);
-      setHasSearched(true);
-    }
-  }, [prefilled]);
-
   const productMap = useMemo(() => {
     if (!allProducts) return new Map<string, Product>();
     return new Map(allProducts.map((p) => [p.id, p]));
@@ -362,8 +327,7 @@ export default function TrackOrderPage() {
 
   const matchedOrders = useMemo<Order[]>(() => {
     if (!allOrders || !submittedPhone.trim()) return [];
-    const q = submittedPhone.trim();
-    return allOrders.filter((o) => o.phone.includes(q));
+    return allOrders.filter((o) => o.phone.includes(submittedPhone.trim()));
   }, [allOrders, submittedPhone]);
 
   const isLoading = ordersLoading || productsLoading;
@@ -389,13 +353,14 @@ export default function TrackOrderPage() {
             animate={{ opacity: 1, y: 0 }}
           >
             <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-white/10 backdrop-blur mb-4">
-              <ShoppingBag className="h-7 w-7 text-white" />
+              <Package className="h-7 w-7 text-white" />
             </div>
             <h1 className="font-heading text-4xl font-bold text-white mb-2">
-              Track Your Order
+              My Order History
             </h1>
             <p className="text-white/70 font-display text-base max-w-md mx-auto">
-              Enter your phone number to see all orders and their live status.
+              View all your past orders, track status, give feedback, or file a
+              complaint.
             </p>
           </motion.div>
         </div>
@@ -415,21 +380,21 @@ export default function TrackOrderPage() {
           >
             <div className="flex-1">
               <Label
-                htmlFor="phone-input"
+                htmlFor="my-orders-phone"
                 className="font-display text-sm font-medium mb-1.5 block"
               >
-                Phone Number
+                Enter Your Phone Number
               </Label>
               <div className="relative">
                 <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  id="phone-input"
+                  id="my-orders-phone"
                   type="tel"
                   value={phoneInput}
                   onChange={(e) => setPhoneInput(e.target.value)}
                   placeholder="+91 98765 43210"
                   className="pl-10 h-11 font-display"
-                  data-ocid="track.input"
+                  data-ocid="my_orders.input"
                   required
                 />
               </div>
@@ -439,10 +404,10 @@ export default function TrackOrderPage() {
                 type="submit"
                 className="btn-ocean h-11 px-6 rounded-lg font-display w-full sm:w-auto"
                 disabled={isLoading || !phoneInput.trim()}
-                data-ocid="track.submit_button"
+                data-ocid="my_orders.submit_button"
               >
                 <Search className="h-4 w-4 mr-2" />
-                Track Orders
+                View My Orders
               </Button>
             </div>
           </form>
@@ -457,11 +422,10 @@ export default function TrackOrderPage() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               className="space-y-4"
-              data-ocid="track.loading_state"
             >
               {Array.from({ length: 2 }, (_, i) => i).map((i) => (
                 <div
-                  key={`tsk-${i}`}
+                  key={`msk-${i}`}
                   className="rounded-2xl border border-border p-6 space-y-4"
                 >
                   <Skeleton className="h-5 w-40" />
@@ -476,7 +440,7 @@ export default function TrackOrderPage() {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0 }}
-              data-ocid="track.empty_state"
+              data-ocid="my_orders.empty_state"
               className="text-center py-16 rounded-2xl border border-dashed border-border bg-secondary/20"
             >
               <Package className="h-12 w-12 mx-auto text-muted-foreground mb-3 opacity-30" />
@@ -484,8 +448,7 @@ export default function TrackOrderPage() {
                 No orders found
               </p>
               <p className="text-muted-foreground font-display text-sm mt-1 max-w-xs mx-auto">
-                No orders placed with this phone number. Double-check and try
-                again.
+                No orders placed with this phone number. Try a different number.
               </p>
               <Link
                 to="/contact"
@@ -523,7 +486,6 @@ export default function TrackOrderPage() {
                   const isCancelled = order.status === OrderStatus.cancelled;
                   const isDelivered = order.status === OrderStatus.delivered;
 
-                  // Get courier info
                   const courierFromStore = courierInfos[order.id];
                   const courierName =
                     courierFromStore?.courierName ?? order.courierName ?? "";
@@ -532,7 +494,6 @@ export default function TrackOrderPage() {
                     order.courierTrackingNumber ??
                     "";
 
-                  // Get feedback for this order
                   const feedback = feedbacks[order.id];
                   const complaint = complaints[order.id];
 
@@ -542,7 +503,7 @@ export default function TrackOrderPage() {
                       initial={{ opacity: 0, y: 16 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: idx * 0.08 }}
-                      data-ocid={`track.item.${idx + 1}`}
+                      data-ocid={`my_orders.item.${idx + 1}`}
                       className={`bg-card rounded-2xl border shadow-card overflow-hidden ${
                         isCancelled
                           ? "border-destructive/20 opacity-80"
@@ -602,7 +563,7 @@ export default function TrackOrderPage() {
                           )}
                         </div>
                         <div className="min-w-0">
-                          <p className="font-heading font-semibold text-sm text-foreground leading-snug line-clamp-1">
+                          <p className="font-heading font-semibold text-sm text-foreground line-clamp-1">
                             {product?.name ??
                               `Product ${order.productId.slice(0, 8)}`}
                           </p>
@@ -618,7 +579,7 @@ export default function TrackOrderPage() {
                         </div>
                       </div>
 
-                      {/* Stepper */}
+                      {/* Stepper + extras */}
                       <div className="px-5 py-5">
                         <p className="text-xs font-display font-medium text-muted-foreground uppercase tracking-wider mb-3">
                           Order Progress
@@ -646,7 +607,6 @@ export default function TrackOrderPage() {
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   className="inline-flex items-center gap-1 text-xs text-ocean-blue font-display hover:underline ml-auto"
-                                  data-ocid={`track.courier_link.${idx + 1}`}
                                 >
                                   Track on {courierName}
                                   <ExternalLink className="h-3 w-3" />
@@ -656,7 +616,7 @@ export default function TrackOrderPage() {
                           </div>
                         )}
 
-                        {/* Post-delivery feedback */}
+                        {/* Feedback section */}
                         {isDelivered &&
                           (feedback ? (
                             <div className="mt-4 pt-3 border-t border-border">
@@ -664,7 +624,7 @@ export default function TrackOrderPage() {
                                 <div className="flex items-center gap-0.5">
                                   {[1, 2, 3, 4, 5].map((n) => (
                                     <Star
-                                      key={`track-fb-star-${n}`}
+                                      key={`my-orders-fb-star-${n}`}
                                       className={`h-4 w-4 ${n <= feedback.rating ? "text-yellow-400 fill-yellow-400" : "text-muted-foreground"}`}
                                     />
                                   ))}
@@ -673,6 +633,11 @@ export default function TrackOrderPage() {
                                   Thank you for your feedback! ⭐
                                 </span>
                               </div>
+                              {feedback.comment && (
+                                <p className="text-xs text-muted-foreground font-display mt-1 italic">
+                                  "{feedback.comment}"
+                                </p>
+                              )}
                             </div>
                           ) : (
                             <FeedbackForm
@@ -681,7 +646,7 @@ export default function TrackOrderPage() {
                             />
                           ))}
 
-                        {/* Complaint/Return section */}
+                        {/* Complaint section */}
                         {!isCancelled && (
                           <ComplaintSection
                             orderId={order.id}
@@ -705,14 +670,12 @@ export default function TrackOrderPage() {
                     href={`https://wa.me/${settings.whatsapp || "919876543210"}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    data-ocid="track.primary_button"
                     className="inline-flex items-center gap-1.5 text-sm font-display font-semibold text-green-700 bg-green-100 hover:bg-green-200 px-4 py-2 rounded-lg transition-colors"
                   >
                     WhatsApp Us
                   </a>
                   <a
                     href={`tel:${settings.phone || "+919876543210"}`}
-                    data-ocid="track.secondary_button"
                     className="inline-flex items-center gap-1.5 text-sm font-display font-semibold text-ocean-blue bg-white hover:bg-secondary border border-border px-4 py-2 rounded-lg transition-colors"
                   >
                     <Phone className="h-3.5 w-3.5" />

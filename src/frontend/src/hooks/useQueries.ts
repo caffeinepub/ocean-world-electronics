@@ -5,6 +5,7 @@ import type {
   Order,
   OrderStatus,
   Product,
+  ProductSales,
 } from "../backend.d";
 import { useActor } from "./useActor";
 
@@ -107,7 +108,7 @@ export function usePlaceOrder() {
 export function useGetAllOrders() {
   const { actor, isFetching } = useActor();
   return useQuery<Order[]>({
-    queryKey: ["orders"],
+    queryKey: ["allOrders"],
     queryFn: async () => {
       if (!actor) return [];
       return actor.getAllOrders();
@@ -128,10 +129,34 @@ export function useUpdateOrderStatus() {
       return actor.updateOrderStatus(orderId, newStatus);
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["orders"] });
+      qc.invalidateQueries({ queryKey: ["allOrders"] });
       qc.invalidateQueries({ queryKey: ["totalOrders"] });
       qc.invalidateQueries({ queryKey: ["ordersByStatus"] });
     },
+  });
+}
+
+export function useUpdateOrderCourierInfo() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      orderId,
+      courierName,
+      courierTrackingNumber,
+    }: {
+      orderId: string;
+      courierName: string;
+      courierTrackingNumber: string;
+    }) => {
+      if (!actor) throw new Error("Actor not available");
+      return actor.updateOrderCourierInfo(
+        orderId,
+        courierName,
+        courierTrackingNumber,
+      );
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["allOrders"] }),
   });
 }
 
@@ -178,6 +203,30 @@ export function useGetOrdersCountByStatus() {
     queryFn: async () => {
       if (!actor) return [];
       return actor.getOrdersCountByStatus();
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
+export function useGetTopSellingProducts(limit: bigint) {
+  const { actor, isFetching } = useActor();
+  return useQuery<ProductSales[]>({
+    queryKey: ["topSellingProducts", limit.toString()],
+    queryFn: async () => {
+      if (!actor) return [];
+      return actor.getTopSellingProducts(limit);
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
+export function useGetRecentOrders(limit: bigint) {
+  const { actor, isFetching } = useActor();
+  return useQuery<Order[]>({
+    queryKey: ["recentOrders", limit.toString()],
+    queryFn: async () => {
+      if (!actor) return [];
+      return actor.getRecentOrders(limit);
     },
     enabled: !!actor && !isFetching,
   });

@@ -10,8 +10,10 @@ import {
   ChevronLeft,
   Loader2,
   MapPin,
+  MessageCircle,
   Package,
   Phone,
+  QrCode,
   ShoppingCart,
   Truck,
 } from "lucide-react";
@@ -19,6 +21,7 @@ import { motion } from "motion/react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { useGetProduct, usePlaceOrder } from "../hooks/useQueries";
+import { getStoreSettings } from "../utils/storeSettings";
 
 function formatPrice(price: bigint): string {
   return `₹${Number(price).toLocaleString("en-IN")}`;
@@ -40,7 +43,6 @@ const emptyForm: OrderForm = {
   specialDescription: "",
 };
 
-// Capture submitted details to show in success screen
 interface SubmittedOrder {
   customerName: string;
   phone: string;
@@ -52,6 +54,7 @@ export default function ProductDetailPage() {
   const { id } = useParams({ from: "/products/$id" });
   const { data: product, isLoading, isError } = useGetProduct(id ?? "");
   const placeOrder = usePlaceOrder();
+  const settings = getStoreSettings();
 
   const [form, setForm] = useState<OrderForm>(emptyForm);
   const [orderSuccess, setOrderSuccess] = useState(false);
@@ -106,6 +109,14 @@ export default function ProductDetailPage() {
     }
   }
 
+  function handleWhatsAppOrder() {
+    if (!product) return;
+    const waNumber = settings.whatsapp || "919876543210";
+    const msg = `I want to order: ${product.name} - ${formatPrice(product.price)}. Please confirm availability.`;
+    const url = `https://wa.me/${waNumber}?text=${encodeURIComponent(msg)}`;
+    window.open(url, "_blank", "noopener,noreferrer");
+  }
+
   if (isLoading) {
     return (
       <div
@@ -144,6 +155,11 @@ export default function ProductDetailPage() {
       </div>
     );
   }
+
+  const hasPaymentInfo =
+    settings.paymentUpiId ||
+    settings.paymentQrBase64 ||
+    settings.paymentUpiPhone;
 
   return (
     <div className="container mx-auto px-4 py-10">
@@ -424,7 +440,65 @@ export default function ProductDetailPage() {
                     </>
                   )}
                 </Button>
+
+                {/* WhatsApp Order Button */}
+                <Button
+                  type="button"
+                  onClick={handleWhatsAppOrder}
+                  className="w-full h-12 rounded-lg font-display text-base bg-[#25D366] hover:bg-[#20c05c] text-white border-0"
+                  data-ocid="product_detail.whatsapp_button"
+                >
+                  <MessageCircle className="h-4 w-4 mr-2" />
+                  Order via WhatsApp
+                </Button>
               </form>
+
+              {/* Payment Info section */}
+              {hasPaymentInfo && (
+                <div className="mt-5 pt-5 border-t border-border">
+                  <div className="flex items-center gap-2 mb-3">
+                    <QrCode className="h-4 w-4 text-ocean-blue" />
+                    <h4 className="font-heading font-semibold text-sm text-foreground">
+                      Payment Information
+                    </h4>
+                  </div>
+                  <div className="bg-ocean-light rounded-xl p-4 flex flex-col sm:flex-row items-start gap-4">
+                    <div className="flex-1 space-y-1">
+                      {settings.paymentUpiId && (
+                        <p className="text-sm font-display text-foreground">
+                          <span className="text-muted-foreground">
+                            UPI ID:{" "}
+                          </span>
+                          <span className="font-semibold">
+                            {settings.paymentUpiId}
+                          </span>
+                        </p>
+                      )}
+                      {settings.paymentUpiPhone && (
+                        <p className="text-sm font-display text-foreground">
+                          <span className="text-muted-foreground">
+                            Phone Pay / GPay:{" "}
+                          </span>
+                          <span className="font-semibold">
+                            {settings.paymentUpiPhone}
+                          </span>
+                        </p>
+                      )}
+                      <p className="text-xs text-muted-foreground font-display mt-2">
+                        After payment, share screenshot on WhatsApp for order
+                        confirmation.
+                      </p>
+                    </div>
+                    {settings.paymentQrBase64 && (
+                      <img
+                        src={settings.paymentQrBase64}
+                        alt="Payment QR Code"
+                        className="w-24 h-24 object-contain rounded-lg border border-border bg-white shrink-0"
+                      />
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </motion.div>

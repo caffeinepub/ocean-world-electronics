@@ -15,6 +15,7 @@ import { motion } from "motion/react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { useSubmitInquiry } from "../hooks/useQueries";
+import { getStoreSettings } from "../utils/storeSettings";
 
 interface InquiryForm {
   name: string;
@@ -28,6 +29,7 @@ export default function ContactPage() {
   const submitInquiry = useSubmitInquiry();
   const [form, setForm] = useState<InquiryForm>(emptyForm);
   const [submitted, setSubmitted] = useState(false);
+  const storeSettings = getStoreSettings();
 
   function handleChange(
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
@@ -117,9 +119,7 @@ export default function ContactPage() {
                       Address
                     </p>
                     <p className="text-white font-display leading-relaxed text-sm">
-                      Plot No. 4, Motinagar,
-                      <br />
-                      New Delhi – 110015, India
+                      {storeSettings.address}
                     </p>
                   </div>
                 </div>
@@ -136,11 +136,11 @@ export default function ContactPage() {
                       Phone
                     </p>
                     <a
-                      href="tel:+919876543210"
+                      href={`tel:${storeSettings.phone.replace(/\s/g, "")}`}
                       data-ocid="contact.primary_button"
                       className="text-white font-display text-sm hover:text-ocean-cyan transition-colors"
                     >
-                      +91 98765 43210
+                      {storeSettings.phone}
                     </a>
                   </div>
                 </div>
@@ -157,11 +157,11 @@ export default function ContactPage() {
                       Email
                     </p>
                     <a
-                      href="mailto:oceanworld.electronics@gmail.com"
+                      href={`mailto:${storeSettings.email}`}
                       data-ocid="contact.link"
                       className="text-white font-display text-sm hover:text-ocean-cyan transition-colors"
                     >
-                      oceanworld.electronics@gmail.com
+                      {storeSettings.email}
                     </a>
                   </div>
                 </div>
@@ -177,10 +177,8 @@ export default function ContactPage() {
                     <p className="text-white/50 text-xs font-display uppercase tracking-wider mb-0.5">
                       Business Hours
                     </p>
-                    <p className="text-white font-display text-sm leading-relaxed">
-                      Mon–Sat: 10:00 AM – 8:00 PM
-                      <br />
-                      Sunday: 11:00 AM – 6:00 PM
+                    <p className="text-white font-display text-sm leading-relaxed whitespace-pre-line">
+                      {storeSettings.businessHours}
                     </p>
                   </div>
                 </div>
@@ -190,7 +188,7 @@ export default function ContactPage() {
             {/* Quick contact buttons */}
             <div className="grid grid-cols-2 gap-4">
               <a
-                href="https://wa.me/919876543210"
+                href={`https://wa.me/${storeSettings.whatsapp}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 data-ocid="contact.secondary_button"
@@ -208,7 +206,7 @@ export default function ContactPage() {
               </a>
 
               <a
-                href="tel:+919876543210"
+                href={`tel:${storeSettings.phone.replace(/\s/g, "")}`}
                 data-ocid="contact.secondary_button"
                 className="flex flex-col items-center justify-center gap-2 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl p-5 transition-colors"
               >
@@ -218,7 +216,7 @@ export default function ContactPage() {
                     Call Now
                   </p>
                   <p className="text-xs text-muted-foreground font-display">
-                    +91 98765 43210
+                    {storeSettings.phone}
                   </p>
                 </div>
               </a>
@@ -232,10 +230,10 @@ export default function ContactPage() {
                   Find Us on Map
                 </p>
                 <p className="text-sm text-muted-foreground font-display">
-                  Plot No. 4, Motinagar, Delhi
+                  {storeSettings.address}
                 </p>
                 <a
-                  href="https://maps.google.com/?q=Motinagar,+New+Delhi"
+                  href={`https://maps.google.com/?q=${encodeURIComponent(storeSettings.address)}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   data-ocid="contact.link"

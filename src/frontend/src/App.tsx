@@ -11,10 +11,12 @@ import {
 import Footer from "./components/Footer";
 import Navbar from "./components/Navbar";
 import SeedData from "./components/SeedData";
+import AboutPage from "./pages/AboutPage";
 import AdminDashboardPage from "./pages/AdminDashboardPage";
 import AdminLoginPage from "./pages/AdminLoginPage";
 import ContactPage from "./pages/ContactPage";
 import HomePage from "./pages/HomePage";
+import MyOrdersPage from "./pages/MyOrdersPage";
 import ProductDetailPage from "./pages/ProductDetailPage";
 import ProductsPage from "./pages/ProductsPage";
 import TrackOrderPage from "./pages/TrackOrderPage";
@@ -65,6 +67,20 @@ const contactRoute = createRoute({
   component: ContactPage,
 });
 
+// About
+const aboutRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/about",
+  component: AboutPage,
+});
+
+// My Orders
+const myOrdersRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/my-orders",
+  component: MyOrdersPage,
+});
+
 // Track order (supports ?phone= query param)
 const trackOrderRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -92,6 +108,8 @@ const routeTree = rootRoute.addChildren([
   productsRoute,
   productDetailRoute,
   contactRoute,
+  aboutRoute,
+  myOrdersRoute,
   trackOrderRoute,
   adminLoginRoute,
   adminDashboardRoute,

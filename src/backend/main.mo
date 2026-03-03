@@ -1,23 +1,37 @@
 import Int "mo:core/Int";
 import Map "mo:core/Map";
+import Nat "mo:core/Nat";
 import Time "mo:core/Time";
 import Text "mo:core/Text";
 import Order "mo:core/Order";
 import Runtime "mo:core/Runtime";
 import List "mo:core/List";
-import Option "mo:core/Option";
-import Principal "mo:core/Principal";
 import Array "mo:core/Array";
+import Migration "migration";
+import Principal "mo:core/Principal";
+import MixinStorage "blob-storage/Mixin";
 import MixinAuthorization "authorization/MixinAuthorization";
 import AccessControl "authorization/access-control";
 
+// Apply migration
+(with migration = Migration.run)
 actor {
   // Authorization Setup
   let accessControlState = AccessControl.initState();
   include MixinAuthorization(accessControlState);
 
+  // Storage setup
+  include MixinStorage();
+
   // Types
-  type OrderStatus = { #pending; #confirmed; #delivered; #cancelled };
+  type OrderStatus = {
+    #pending;
+    #confirmed;
+    #shipped;
+    #out_for_delivery;
+    #delivered;
+    #cancelled;
+  };
 
   type Product = {
     id : Text;
@@ -32,7 +46,7 @@ actor {
     isAvailable : Bool;
   };
 
-  type Order = {
+  public type Order = {
     id : Text;
     customerName : Text;
     phone : Text;
@@ -42,6 +56,8 @@ actor {
     specialDescription : Text;
     status : OrderStatus;
     timestamp : Int;
+    courierName : ?Text;
+    courierTrackingNumber : ?Text;
   };
 
   type Inquiry = {
@@ -64,6 +80,12 @@ actor {
     revenue : Nat;
   };
 
+  type ProductSales = {
+    productId : Text;
+    productName : Text;
+    totalQuantity : Nat;
+  };
+
   module Product {
     public func compare(p1 : Product, p2 : Product) : Order.Order {
       Text.compare(p1.id, p2.id);
@@ -78,7 +100,7 @@ actor {
 
   // Initialization
   public shared ({ caller }) func initialize() : async () {
-    AccessControl.initialize(accessControlState, caller, "admin123", "admin123");
+    AccessControl.initialize(accessControlState, caller, "bhawna paneru", "1995@Bhawna");
 
     // Seed products if not already seeded
     if (products.isEmpty()) {
@@ -163,6 +185,7 @@ actor {
 
   // Product Management
   public query ({ caller }) func getProduct(productId : Text) : async Product {
+    // Public read access - no authorization required
     switch (products.get(productId)) {
       case (null) { Runtime.trap("Product not found") };
       case (?product) { product };
@@ -170,6 +193,7 @@ actor {
   };
 
   public query ({ caller }) func getAllProducts() : async [Product] {
+    // Public read access - no authorization required
     products.values().toArray().sort();
   };
 
@@ -199,6 +223,23 @@ actor {
 
   // Order Management
   public shared ({ caller }) func placeOrder(customerName : Text, phone : Text, address : Text, quantity : Nat, productId : Text, specialDescription : Text) : async () {
+    // Allow guests to place orders (e-commerce public function)
+    // No authorization check - this is intentionally public for customer orders
+
+    // Validate input
+    if (customerName.size() == 0) {
+      Runtime.trap("Customer name is required");
+    };
+    if (phone.size() == 0) {
+      Runtime.trap("Phone number is required");
+    };
+    if (address.size() == 0) {
+      Runtime.trap("Address is required");
+    };
+    if (quantity == 0) {
+      Runtime.trap("Quantity must be greater than 0");
+    };
+
     let orderId = "order-" # productId; // Fallback to using productId as part of orderId
     let order : Order = {
       id = orderId;
@@ -210,6 +251,8 @@ actor {
       specialDescription;
       status = #pending;
       timestamp = Time.now();
+      courierName = null;
+      courierTrackingNumber = null;
     };
     orders.add(orderId, order);
   };
@@ -238,14 +281,130 @@ actor {
           specialDescription = order.specialDescription;
           status = newStatus;
           timestamp = order.timestamp;
+          courierName = order.courierName;
+          courierTrackingNumber = order.courierTrackingNumber;
         };
         orders.add(orderId, updatedOrder);
       };
     };
   };
 
+  public shared ({ caller }) func updateOrderCourierInfo(orderId : Text, courierName : Text, courierTrackingNumber : Text) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can perform this action");
+    };
+    switch (orders.get(orderId)) {
+      case (null) { Runtime.trap("Order not found") };
+      case (?order) {
+        let updatedOrder = {
+          id = order.id;
+          customerName = order.customerName;
+          phone = order.phone;
+          address = order.address;
+          quantity = order.quantity;
+          productId = order.productId;
+          specialDescription = order.specialDescription;
+          status = order.status;
+          timestamp = order.timestamp;
+          courierName = ?courierName;
+          courierTrackingNumber = ?courierTrackingNumber;
+        };
+        orders.add(orderId, updatedOrder);
+      };
+    };
+  };
+
+  public query ({ caller }) func getOrdersByStatus(status : OrderStatus) : async [Order] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can perform this action");
+    };
+
+    let filteredOrders = List.empty<Order>();
+    for (order in orders.values()) {
+      if (order.status == status) {
+        filteredOrders.add(order);
+      };
+    };
+
+    filteredOrders.toArray();
+  };
+
+  public query ({ caller }) func getTopSellingProducts(limit : Nat) : async [ProductSales] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can perform this action");
+    };
+
+    let productSalesMap = Map.empty<Text, (Text, Nat)>();
+
+    for (order in orders.values()) {
+      let (currentName, currentQuantity) = switch (productSalesMap.get(order.productId)) {
+        case (?data) { data };
+        case (null) { ("", 0) };
+      };
+
+      let productName = switch (products.get(order.productId)) {
+        case (?product) { product.name };
+        case (null) { currentName };
+      };
+
+      let updatedQuantity = currentQuantity + order.quantity;
+      productSalesMap.add(order.productId, (productName, updatedQuantity));
+    };
+
+    let salesList = List.empty<ProductSales>();
+
+    for ((productId, (productName, totalQuantity)) in productSalesMap.entries()) {
+      salesList.add({
+        productId;
+        productName;
+        totalQuantity;
+      });
+    };
+
+    let salesArray = salesList.toArray();
+    let sortedSales = salesArray.sort(
+      func(a, b) {
+        Nat.compare(b.totalQuantity, a.totalQuantity);
+      }
+    );
+
+    let resultLength = Nat.min(limit, sortedSales.size());
+    sortedSales.sliceToArray(0, resultLength);
+  };
+
+  public query ({ caller }) func getRecentOrders(limit : Nat) : async [Order] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can perform this action");
+    };
+
+    let allOrders = orders.values().toArray();
+
+    let sortedOrders = allOrders.sort(
+      func(a, b) {
+        Int.compare(b.timestamp, a.timestamp);
+      }
+    );
+
+    let resultLength = Nat.min(limit, sortedOrders.size());
+    sortedOrders.sliceToArray(0, resultLength);
+  };
+
   // Inquiry Management
   public shared ({ caller }) func submitInquiry(name : Text, phone : Text, message : Text) : async () {
+    // Allow guests to submit inquiries (public customer support function)
+    // No authorization check - this is intentionally public for customer inquiries
+
+    // Validate input
+    if (name.size() == 0) {
+      Runtime.trap("Name is required");
+    };
+    if (phone.size() == 0) {
+      Runtime.trap("Phone number is required");
+    };
+    if (message.size() == 0) {
+      Runtime.trap("Message is required");
+    };
+
     let inquiryId = "inquiry-" # name # phone; // Fallback to using name and phone as part of inquiryId
     let inquiry : Inquiry = {
       name;
@@ -291,6 +450,8 @@ actor {
     };
     var pendingCount : Nat = 0;
     var confirmedCount : Nat = 0;
+    var shippedCount : Nat = 0;
+    var outForDeliveryCount : Nat = 0;
     var deliveredCount : Nat = 0;
     var cancelledCount : Nat = 0;
 
@@ -298,6 +459,8 @@ actor {
       switch (order.status) {
         case (#pending) { pendingCount += 1 };
         case (#confirmed) { confirmedCount += 1 };
+        case (#shipped) { shippedCount += 1 };
+        case (#out_for_delivery) { outForDeliveryCount += 1 };
         case (#delivered) { deliveredCount += 1 };
         case (#cancelled) { cancelledCount += 1 };
       };
@@ -306,6 +469,8 @@ actor {
     [
       ("pending", pendingCount),
       ("confirmed", confirmedCount),
+      ("shipped", shippedCount),
+      ("out_for_delivery", outForDeliveryCount),
       ("delivered", deliveredCount),
       ("cancelled", cancelledCount),
     ];

@@ -1,6 +1,12 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Search, SlidersHorizontal } from "lucide-react";
 import { motion } from "motion/react";
 import { useMemo, useState } from "react";
@@ -9,10 +15,13 @@ import { useGetAllProducts } from "../hooks/useQueries";
 
 const ALL_CATEGORY = "All";
 
+type SortOption = "default" | "price_asc" | "price_desc" | "name_asc";
+
 export default function ProductsPage() {
   const { data: products, isLoading } = useGetAllProducts();
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState(ALL_CATEGORY);
+  const [sortBy, setSortBy] = useState<SortOption>("default");
 
   const categories = useMemo(() => {
     if (!products) return [ALL_CATEGORY];
@@ -22,7 +31,7 @@ export default function ProductsPage() {
 
   const filtered = useMemo(() => {
     if (!products) return [];
-    return products.filter((p) => {
+    let result = products.filter((p) => {
       const matchCat =
         activeCategory === ALL_CATEGORY || p.category === activeCategory;
       const q = search.toLowerCase();
@@ -33,7 +42,18 @@ export default function ProductsPage() {
         p.description.toLowerCase().includes(q);
       return matchCat && matchSearch;
     });
-  }, [products, search, activeCategory]);
+
+    // Sort
+    if (sortBy === "price_asc") {
+      result = [...result].sort((a, b) => Number(a.price - b.price));
+    } else if (sortBy === "price_desc") {
+      result = [...result].sort((a, b) => Number(b.price - a.price));
+    } else if (sortBy === "name_asc") {
+      result = [...result].sort((a, b) => a.name.localeCompare(b.name));
+    }
+
+    return result;
+  }, [products, search, activeCategory, sortBy]);
 
   return (
     <div>
@@ -64,8 +84,8 @@ export default function ProductsPage() {
       </div>
 
       <div className="container mx-auto px-4 py-10">
-        {/* Search + Filter */}
-        <div className="flex flex-col sm:flex-row gap-4 mb-8">
+        {/* Search + Sort + Filter */}
+        <div className="flex flex-col sm:flex-row gap-3 mb-6">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -76,30 +96,82 @@ export default function ProductsPage() {
               data-ocid="products.search_input"
             />
           </div>
-          <div className="flex items-center gap-2 text-sm text-muted-foreground font-display">
-            <SlidersHorizontal className="h-4 w-4" />
-            <span>{filtered.length} results</span>
-          </div>
+          <Select value={activeCategory} onValueChange={setActiveCategory}>
+            <SelectTrigger
+              className="h-11 font-display w-full sm:w-48"
+              data-ocid="products.category_filter.select"
+            >
+              <SelectValue placeholder="All Categories" />
+            </SelectTrigger>
+            <SelectContent>
+              {categories.map((cat) => (
+                <SelectItem key={cat} value={cat} className="font-display">
+                  {cat === ALL_CATEGORY ? "All Categories" : cat}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select
+            value={sortBy}
+            onValueChange={(v) => setSortBy(v as SortOption)}
+          >
+            <SelectTrigger
+              className="h-11 font-display w-full sm:w-48"
+              data-ocid="products.sort.select"
+            >
+              <SelectValue placeholder="Sort by" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="default" className="font-display">
+                Default
+              </SelectItem>
+              <SelectItem value="price_asc" className="font-display">
+                Price: Low to High
+              </SelectItem>
+              <SelectItem value="price_desc" className="font-display">
+                Price: High to Low
+              </SelectItem>
+              <SelectItem value="name_asc" className="font-display">
+                Name: A–Z
+              </SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
-        {/* Category tabs */}
-        <div className="flex flex-wrap gap-2 mb-8" role="tablist">
-          {categories.map((cat) => (
-            <Button
-              key={cat}
-              variant={activeCategory === cat ? "default" : "outline"}
-              size="sm"
-              onClick={() => setActiveCategory(cat)}
-              data-ocid="products.tab"
-              className={`rounded-full font-display text-sm h-9 px-4 ${
-                activeCategory === cat
-                  ? "btn-ocean border-0"
-                  : "border-border text-foreground hover:bg-secondary"
-              }`}
-            >
-              {cat}
-            </Button>
-          ))}
+        {/* Count + Category Tabs */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground font-display">
+            <SlidersHorizontal className="h-4 w-4" />
+            <span>
+              Showing{" "}
+              <span className="font-semibold text-foreground">
+                {filtered.length}
+              </span>{" "}
+              of{" "}
+              <span className="font-semibold text-foreground">
+                {products?.length ?? 0}
+              </span>{" "}
+              products
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-2" role="tablist">
+            {categories.map((cat) => (
+              <Button
+                key={cat}
+                variant={activeCategory === cat ? "default" : "outline"}
+                size="sm"
+                onClick={() => setActiveCategory(cat)}
+                data-ocid="products.tab"
+                className={`rounded-full font-display text-sm h-8 px-3 ${
+                  activeCategory === cat
+                    ? "btn-ocean border-0"
+                    : "border-border text-foreground hover:bg-secondary"
+                }`}
+              >
+                {cat}
+              </Button>
+            ))}
+          </div>
         </div>
 
         {/* Products grid */}
@@ -113,11 +185,11 @@ export default function ProductsPage() {
                 key={`skel-${i}`}
                 className="rounded-xl overflow-hidden border border-border"
               >
-                <Skeleton className="aspect-square w-full" />
+                <div className="aspect-square w-full bg-secondary animate-pulse" />
                 <div className="p-4 space-y-3">
-                  <Skeleton className="h-4 w-24" />
-                  <Skeleton className="h-5 w-full" />
-                  <Skeleton className="h-10 w-full mt-2" />
+                  <div className="h-4 w-24 bg-secondary animate-pulse rounded" />
+                  <div className="h-5 w-full bg-secondary animate-pulse rounded" />
+                  <div className="h-10 w-full bg-secondary animate-pulse rounded mt-2" />
                 </div>
               </div>
             ))}
@@ -134,14 +206,18 @@ export default function ProductsPage() {
             <p className="text-muted-foreground font-display text-sm mt-1">
               Try a different search term or category
             </p>
-            {search && (
+            {(search || activeCategory !== ALL_CATEGORY) && (
               <Button
                 variant="outline"
                 size="sm"
                 className="mt-4 font-display"
-                onClick={() => setSearch("")}
+                onClick={() => {
+                  setSearch("");
+                  setActiveCategory(ALL_CATEGORY);
+                  setSortBy("default");
+                }}
               >
-                Clear Search
+                Clear Filters
               </Button>
             )}
           </div>

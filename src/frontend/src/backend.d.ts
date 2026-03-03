@@ -13,6 +13,11 @@ export interface MonthlySales {
     year: bigint;
     orderCount: bigint;
 }
+export interface ProductSales {
+    productId: string;
+    productName: string;
+    totalQuantity: bigint;
+}
 export interface Inquiry {
     name: string;
     message: string;
@@ -24,7 +29,9 @@ export interface Order {
     customerName: string;
     status: OrderStatus;
     specialDescription: string;
+    courierName?: string;
     productId: string;
+    courierTrackingNumber?: string;
     address: string;
     timestamp: bigint;
     quantity: bigint;
@@ -48,8 +55,10 @@ export interface Product {
     price: bigint;
 }
 export enum OrderStatus {
+    shipped = "shipped",
     cancelled = "cancelled",
     pending = "pending",
+    out_for_delivery = "out_for_delivery",
     delivered = "delivered",
     confirmed = "confirmed"
 }
@@ -68,8 +77,11 @@ export interface backendInterface {
     getCallerUserProfile(): Promise<UserProfile | null>;
     getCallerUserRole(): Promise<UserRole>;
     getMonthlySalesSummary(): Promise<Array<MonthlySales>>;
+    getOrdersByStatus(status: OrderStatus): Promise<Array<Order>>;
     getOrdersCountByStatus(): Promise<Array<[string, bigint]>>;
     getProduct(productId: string): Promise<Product>;
+    getRecentOrders(limit: bigint): Promise<Array<Order>>;
+    getTopSellingProducts(limit: bigint): Promise<Array<ProductSales>>;
     getTotalOrdersCount(): Promise<bigint>;
     getTotalRevenue(): Promise<bigint>;
     getUserProfile(user: Principal): Promise<UserProfile | null>;
@@ -78,6 +90,7 @@ export interface backendInterface {
     placeOrder(customerName: string, phone: string, address: string, quantity: bigint, productId: string, specialDescription: string): Promise<void>;
     saveCallerUserProfile(profile: UserProfile): Promise<void>;
     submitInquiry(name: string, phone: string, message: string): Promise<void>;
+    updateOrderCourierInfo(orderId: string, courierName: string, courierTrackingNumber: string): Promise<void>;
     updateOrderStatus(orderId: string, newStatus: OrderStatus): Promise<void>;
     updateProduct(productId: string, updatedProduct: Product): Promise<void>;
 }

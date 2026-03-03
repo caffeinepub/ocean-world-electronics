@@ -1,12 +1,21 @@
 import { Button } from "@/components/ui/button";
 import { Link, useRouter } from "@tanstack/react-router";
-import { MapPin, Menu, Phone, ShoppingCart, X } from "lucide-react";
+import {
+  Info,
+  MapPin,
+  Menu,
+  Package,
+  Phone,
+  ShoppingCart,
+  X,
+} from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
 
 const simpleNavLinks = [
   { to: "/" as const, label: "Home" },
   { to: "/products" as const, label: "Products" },
+  { to: "/about" as const, label: "About" },
   { to: "/contact" as const, label: "Contact" },
 ];
 
@@ -19,6 +28,7 @@ export default function Navbar() {
     to === "/" ? currentPath === "/" : currentPath.startsWith(to);
 
   const trackActive = currentPath.startsWith("/track-order");
+  const myOrdersActive = currentPath.startsWith("/my-orders");
 
   const linkClass = (active: boolean) =>
     `px-3 py-2 rounded-md text-sm font-medium font-display transition-colors ${
@@ -67,10 +77,18 @@ export default function Navbar() {
             <Link
               to="/track-order"
               search={{ phone: undefined }}
-              data-ocid="nav.link.5"
+              data-ocid="nav.link.6"
               className={linkClass(trackActive)}
             >
               Track Order
+            </Link>
+            <Link
+              to="/my-orders"
+              data-ocid="nav.link.7"
+              className={`${linkClass(myOrdersActive)} flex items-center gap-1.5`}
+            >
+              <Package className="h-3.5 w-3.5" />
+              My Orders
             </Link>
           </nav>
 
@@ -149,7 +167,7 @@ export default function Navbar() {
               <Link
                 to="/track-order"
                 search={{ phone: undefined }}
-                data-ocid="nav.mobile.link.4"
+                data-ocid="nav.mobile.link.5"
                 onClick={() => setMenuOpen(false)}
                 className={`px-4 py-3 rounded-md text-sm font-medium font-display transition-colors ${
                   trackActive
@@ -158,6 +176,19 @@ export default function Navbar() {
                 }`}
               >
                 Track Order
+              </Link>
+              <Link
+                to="/my-orders"
+                data-ocid="nav.mobile.link.6"
+                onClick={() => setMenuOpen(false)}
+                className={`flex items-center gap-2 px-4 py-3 rounded-md text-sm font-medium font-display transition-colors ${
+                  myOrdersActive
+                    ? "bg-ocean-light text-ocean-blue font-semibold"
+                    : "text-foreground hover:bg-secondary"
+                }`}
+              >
+                <Package className="h-4 w-4" />
+                My Orders
               </Link>
 
               <div className="pt-2 border-t border-border mt-1">
