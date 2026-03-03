@@ -1,0 +1,119 @@
+/**
+ * Sample products to seed the backend on first load.
+ * Called once from the app when no products exist.
+ */
+import { useEffect, useRef } from "react";
+import { useCreateProduct, useGetAllProducts } from "../hooks/useQueries";
+
+const SAMPLE_PRODUCTS = [
+  {
+    id: "prod_001",
+    name: "Samsung Galaxy S24 5G",
+    manufacturer: "Samsung",
+    category: "Smartphones",
+    price: BigInt(74999),
+    description:
+      '6.2" Dynamic AMOLED display, Snapdragon 8 Gen 3, 50MP triple camera system, 5000mAh battery.',
+    imageUrl: "/assets/generated/product-smartphone.dim_400x400.jpg",
+    stockQuantity: BigInt(25),
+    additionalDetails:
+      "Color: Phantom Black\nRAM: 8GB\nStorage: 256GB\nWarranty: 1 Year Samsung India\nIn-box: Cable, Adapter, SIM ejector tool",
+    isAvailable: true,
+  },
+  {
+    id: "prod_002",
+    name: "Sony WH-1000XM5 Wireless Headphones",
+    manufacturer: "Sony",
+    category: "Headphones",
+    price: BigInt(29990),
+    description:
+      "Industry-leading noise cancellation with 8 microphones, 30-hour battery life, multipoint connection.",
+    imageUrl: "/assets/generated/product-headphones.dim_400x400.jpg",
+    stockQuantity: BigInt(15),
+    additionalDetails:
+      "Color: Black\nConnectivity: Bluetooth 5.2\nBattery: 30 hours (NC on)\nWarranty: 1 Year Sony India\nFolding: Yes, foldable",
+    isAvailable: true,
+  },
+  {
+    id: "prod_003",
+    name: "Anker PowerCore 20000 PD",
+    manufacturer: "Anker",
+    category: "Power Banks",
+    price: BigInt(3499),
+    description:
+      "20,000mAh capacity, 65W USB-C PD output, can charge laptops, phones, and tablets simultaneously.",
+    imageUrl: "/assets/generated/product-powerbank.dim_400x400.jpg",
+    stockQuantity: BigInt(40),
+    additionalDetails:
+      "Capacity: 20,000mAh\nPorts: 1x USB-C PD (65W), 2x USB-A (15W each)\nInput: USB-C 45W\nWeight: 340g\nWarranty: 18 Months Anker",
+    isAvailable: true,
+  },
+  {
+    id: "prod_004",
+    name: "boAt Airdopes 141 TWS Earbuds",
+    manufacturer: "boAt",
+    category: "Earbuds",
+    price: BigInt(1299),
+    description:
+      "42 hours playtime, ASAP charge, IPX4 water resistance, immersive BEAST™ mode sound.",
+    imageUrl: "/assets/generated/product-earbuds.dim_400x400.jpg",
+    stockQuantity: BigInt(60),
+    additionalDetails:
+      "Driver: 8mm Dynamic\nBluetooth: 5.3\nTotal Playback: 42 hours\nIPX Rating: IPX4\nWarranty: 1 Year boAt India",
+    isAvailable: true,
+  },
+  {
+    id: "prod_005",
+    name: "Portronics USB-C to USB-C Braided Cable 2m",
+    manufacturer: "Portronics",
+    category: "Cables",
+    price: BigInt(499),
+    description:
+      "2-meter braided nylon cable supporting 100W fast charging and 480Mbps data transfer.",
+    imageUrl: "/assets/generated/product-cable.dim_400x400.jpg",
+    stockQuantity: BigInt(100),
+    additionalDetails:
+      "Length: 2 Meters\nMaterial: Braided Nylon + Aluminum\nMax Wattage: 100W PD\nData Transfer: 480 Mbps\nCompatible: All USB-C devices\nWarranty: 6 Months",
+    isAvailable: true,
+  },
+  {
+    id: "prod_006",
+    name: "Wipro Smart LED Desk Lamp 9W",
+    manufacturer: "Wipro",
+    category: "Smart Gadgets",
+    price: BigInt(1799),
+    description:
+      "Touch control, 5-level dimming, warm to cool white (3000K-6500K), USB charging port built-in.",
+    imageUrl: "/assets/generated/product-lamp.dim_400x400.jpg",
+    stockQuantity: BigInt(30),
+    additionalDetails:
+      "Wattage: 9W LED\nColor Temperature: 3000K – 6500K\nDimming: 5 levels touch control\nUSB Port: 5V/1A charging\nBase: Weighted anti-slip\nWarranty: 2 Years Wipro",
+    isAvailable: true,
+  },
+];
+
+export default function SeedData() {
+  const { data: products, isLoading } = useGetAllProducts();
+  const createProduct = useCreateProduct();
+  const seeded = useRef(false);
+
+  useEffect(() => {
+    if (isLoading || seeded.current) return;
+    if (products && products.length === 0) {
+      seeded.current = true;
+      // Seed products sequentially to avoid race conditions
+      const seedNext = async (index: number) => {
+        if (index >= SAMPLE_PRODUCTS.length) return;
+        try {
+          await createProduct.mutateAsync(SAMPLE_PRODUCTS[index]);
+          await seedNext(index + 1);
+        } catch {
+          // Silently fail — data may already exist
+        }
+      };
+      seedNext(0);
+    }
+  }, [products, isLoading, createProduct]);
+
+  return null;
+}

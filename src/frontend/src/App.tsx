@@ -1,0 +1,110 @@
+import { Toaster } from "@/components/ui/sonner";
+import {
+  Link,
+  Outlet,
+  RouterProvider,
+  createRootRoute,
+  createRoute,
+  createRouter,
+  useNavigate,
+} from "@tanstack/react-router";
+import Footer from "./components/Footer";
+import Navbar from "./components/Navbar";
+import SeedData from "./components/SeedData";
+import AdminDashboardPage from "./pages/AdminDashboardPage";
+import AdminLoginPage from "./pages/AdminLoginPage";
+import ContactPage from "./pages/ContactPage";
+import HomePage from "./pages/HomePage";
+import ProductDetailPage from "./pages/ProductDetailPage";
+import ProductsPage from "./pages/ProductsPage";
+import TrackOrderPage from "./pages/TrackOrderPage";
+
+// Export Link and useNavigate for use in other components
+export { Link, useNavigate };
+
+// Root layout with Navbar/Footer
+const rootRoute = createRootRoute({
+  component: () => (
+    <div className="min-h-screen flex flex-col bg-background">
+      <SeedData />
+      <Navbar />
+      <main className="flex-1">
+        <Outlet />
+      </main>
+      <Footer />
+      <Toaster richColors position="top-right" />
+    </div>
+  ),
+});
+
+// Home
+const homeRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/",
+  component: HomePage,
+});
+
+// Products
+const productsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/products",
+  component: ProductsPage,
+});
+
+// Product detail
+const productDetailRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/products/$id",
+  component: ProductDetailPage,
+});
+
+// Contact
+const contactRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/contact",
+  component: ContactPage,
+});
+
+// Track order (supports ?phone= query param)
+const trackOrderRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/track-order",
+  component: TrackOrderPage,
+  validateSearch: (search: Record<string, unknown>) => ({
+    phone: typeof search.phone === "string" ? search.phone : undefined,
+  }),
+});
+
+const adminLoginRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/admin",
+  component: AdminLoginPage,
+});
+
+const adminDashboardRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/admin/dashboard",
+  component: AdminDashboardPage,
+});
+
+const routeTree = rootRoute.addChildren([
+  homeRoute,
+  productsRoute,
+  productDetailRoute,
+  contactRoute,
+  trackOrderRoute,
+  adminLoginRoute,
+  adminDashboardRoute,
+]);
+
+const router = createRouter({ routeTree });
+
+declare module "@tanstack/react-router" {
+  interface Register {
+    router: typeof router;
+  }
+}
+
+export default function App() {
+  return <RouterProvider router={router} />;
+}

@@ -1,0 +1,179 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ──────────────────────────────────────────────────────────────
+   FONT FACES — Ocean World Electronics
+   ────────────────────────────────────────────────────────────── */
+@font-face {
+  font-family: "Cabinet Grotesk";
+  src: url("/assets/fonts/CabinetGrotesk-Variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Bricolage Grotesque";
+  src: url("/assets/fonts/BricolageGrotesque[opsz,wdth,wght].woff2") format("woff2");
+  font-weight: 200 800;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Satoshi";
+  src: url("/assets/fonts/Satoshi-Variable.woff2") format("woff2");
+  font-weight: 300 900;
+  font-display: swap;
+}
+
+/* ──────────────────────────────────────────────────────────────
+   DESIGN TOKENS — Ocean Deep Navy + Electric Blue
+   Light mode (professional, clean white/light)
+   ────────────────────────────────────────────────────────────── */
+@layer base {
+  :root {
+    --radius: 0.5rem;
+
+    /* Navy-white base */
+    --background: 0.98 0.004 240;
+    --foreground: 0.13 0.03 260;
+
+    --card: 1 0 0;
+    --card-foreground: 0.13 0.03 260;
+
+    --popover: 1 0 0;
+    --popover-foreground: 0.13 0.03 260;
+
+    /* Primary — deep navy */
+    --primary: 0.22 0.07 265;
+    --primary-foreground: 0.98 0 0;
+
+    /* Secondary — light ocean blue tint */
+    --secondary: 0.94 0.015 240;
+    --secondary-foreground: 0.22 0.07 265;
+
+    /* Muted */
+    --muted: 0.93 0.012 240;
+    --muted-foreground: 0.50 0.025 255;
+
+    /* Accent — electric cyan-blue */
+    --accent: 0.96 0.02 230;
+    --accent-foreground: 0.20 0.08 255;
+
+    /* Destructive */
+    --destructive: 0.577 0.245 27.325;
+    --destructive-foreground: 0.98 0 0;
+
+    /* Brand electric blue for CTAs */
+    --ocean-blue: 0.52 0.19 252;
+    --ocean-blue-fg: 0.98 0 0;
+    --ocean-cyan: 0.72 0.16 212;
+    --ocean-navy: 0.18 0.07 262;
+    --ocean-light: 0.96 0.018 235;
+
+    --border: 0.88 0.02 240;
+    --input: 0.88 0.02 240;
+    --ring: 0.52 0.19 252;
+
+    /* Charts */
+    --chart-1: 0.52 0.19 252;
+    --chart-2: 0.65 0.16 210;
+    --chart-3: 0.72 0.13 175;
+    --chart-4: 0.75 0.15 80;
+    --chart-5: 0.65 0.18 30;
+
+    /* Sidebar */
+    --sidebar: 0.16 0.065 265;
+    --sidebar-foreground: 0.93 0.01 240;
+    --sidebar-primary: 0.52 0.19 252;
+    --sidebar-primary-foreground: 0.98 0 0;
+    --sidebar-accent: 0.22 0.07 265;
+    --sidebar-accent-foreground: 0.93 0.01 240;
+    --sidebar-border: 0.25 0.05 265;
+    --sidebar-ring: 0.52 0.19 252;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: "Satoshi", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  h1, h2, h3, h4 {
+    font-family: "Bricolage Grotesque", sans-serif;
+    font-weight: 700;
+  }
+
+  .font-display {
+    font-family: "Cabinet Grotesk", sans-serif;
+  }
+}
+
+/* ──────────────────────────────────────────────────────────────
+   OCEAN WORLD CUSTOM UTILITIES
+   ────────────────────────────────────────────────────────────── */
+@layer utilities {
+  .ocean-gradient {
+    background: linear-gradient(135deg,
+      oklch(0.18 0.07 262) 0%,
+      oklch(0.22 0.08 255) 40%,
+      oklch(0.28 0.12 245) 100%
+    );
+  }
+
+  .ocean-gradient-light {
+    background: linear-gradient(135deg,
+      oklch(0.96 0.018 235) 0%,
+      oklch(0.98 0.008 240) 60%,
+      oklch(1 0 0) 100%
+    );
+  }
+
+  .electric-glow {
+    box-shadow: 0 0 20px oklch(0.52 0.19 252 / 0.3),
+                0 0 60px oklch(0.52 0.19 252 / 0.1);
+  }
+
+  .card-hover {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  .card-hover:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 40px oklch(0.22 0.07 265 / 0.15);
+  }
+
+  .btn-ocean {
+    background: oklch(var(--ocean-blue));
+    color: oklch(var(--ocean-blue-fg));
+    font-family: "Cabinet Grotesk", sans-serif;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    transition: background 0.2s, transform 0.1s, box-shadow 0.2s;
+  }
+  .btn-ocean:hover {
+    background: oklch(0.47 0.21 252);
+    box-shadow: 0 4px 20px oklch(0.52 0.19 252 / 0.4);
+    transform: translateY(-1px);
+  }
+
+  .text-ocean {
+    color: oklch(var(--ocean-blue));
+  }
+
+  .bg-ocean-navy {
+    background-color: oklch(var(--ocean-navy));
+  }
+
+  .bg-ocean-light {
+    background-color: oklch(var(--ocean-light));
+  }
+
+  .border-ocean {
+    border-color: oklch(var(--ocean-blue) / 0.3);
+  }
+}
