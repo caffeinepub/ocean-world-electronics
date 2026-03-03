@@ -117,6 +117,7 @@ export const idlService = IDL.Service({
   'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
   'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
   'getMonthlySalesSummary' : IDL.Func([], [IDL.Vec(MonthlySales)], ['query']),
+  'getOrdersByPhone' : IDL.Func([IDL.Text], [IDL.Vec(Order)], ['query']),
   'getOrdersByStatus' : IDL.Func([OrderStatus], [IDL.Vec(Order)], ['query']),
   'getOrdersCountByStatus' : IDL.Func(
       [],
@@ -263,6 +264,7 @@ export const idlFactory = ({ IDL }) => {
     'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
     'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
     'getMonthlySalesSummary' : IDL.Func([], [IDL.Vec(MonthlySales)], ['query']),
+    'getOrdersByPhone' : IDL.Func([IDL.Text], [IDL.Vec(Order)], ['query']),
     'getOrdersByStatus' : IDL.Func([OrderStatus], [IDL.Vec(Order)], ['query']),
     'getOrdersCountByStatus' : IDL.Func(
         [],

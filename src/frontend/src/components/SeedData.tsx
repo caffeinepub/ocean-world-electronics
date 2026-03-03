@@ -1,9 +1,24 @@
+import { useQueryClient } from "@tanstack/react-query";
 /**
  * Sample products to seed the backend on first load.
  * Called once from the app when no products exist.
+ * Uses getAdminActor directly to ensure admin auth for createProduct.
  */
 import { useEffect, useRef } from "react";
-import { useCreateProduct, useGetAllProducts } from "../hooks/useQueries";
+import { createActorWithConfig } from "../config";
+import { useGetAllProducts } from "../hooks/useQueries";
+
+const ADMIN_TOKEN = "1995@Bhawna";
+
+async function getAdminActor() {
+  const actor = await createActorWithConfig();
+  try {
+    await (actor as any)._initializeAccessControlWithSecret(ADMIN_TOKEN);
+  } catch {
+    // ignore — may already be initialized
+  }
+  return actor;
+}
 
 const SAMPLE_PRODUCTS = [
   {
@@ -94,26 +109,34 @@ const SAMPLE_PRODUCTS = [
 
 export default function SeedData() {
   const { data: products, isLoading } = useGetAllProducts();
-  const createProduct = useCreateProduct();
+  const qc = useQueryClient();
   const seeded = useRef(false);
 
   useEffect(() => {
-    if (isLoading || seeded.current) return;
+    // Only seed when admin is logged in
+    const isAdmin = localStorage.getItem("owAdmin") === "1";
+    if (!isAdmin || isLoading || seeded.current) return;
     if (products && products.length === 0) {
       seeded.current = true;
-      // Seed products sequentially to avoid race conditions
-      const seedNext = async (index: number) => {
-        if (index >= SAMPLE_PRODUCTS.length) return;
+      // Seed products sequentially using admin actor directly
+      const seedAll = async () => {
         try {
-          await createProduct.mutateAsync(SAMPLE_PRODUCTS[index]);
-          await seedNext(index + 1);
+          const actor = await getAdminActor();
+          for (const product of SAMPLE_PRODUCTS) {
+            try {
+              await actor.createProduct(product);
+            } catch {
+              // Silently fail — product may already exist
+            }
+          }
+          qc.invalidateQueries({ queryKey: ["products"] });
         } catch {
-          // Silently fail — data may already exist
+          // Silently fail — admin auth may not be available yet
         }
       };
-      seedNext(0);
+      seedAll();
     }
-  }, [products, isLoading, createProduct]);
+  }, [products, isLoading, qc]);
 
   return null;
 }

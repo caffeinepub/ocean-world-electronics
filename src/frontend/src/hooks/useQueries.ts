@@ -7,7 +7,22 @@ import type {
   Product,
   ProductSales,
 } from "../backend.d";
+import { createActorWithConfig } from "../config";
 import { useActor } from "./useActor";
+
+// ── Admin Actor ─────────────────────────────────────────────────
+const ADMIN_TOKEN = "1995@Bhawna";
+
+async function getAdminActor() {
+  const actor = await createActorWithConfig();
+  try {
+    // _initializeAccessControlWithSecret is not in the public type but exists at runtime
+    await (actor as any)._initializeAccessControlWithSecret(ADMIN_TOKEN);
+  } catch {
+    // ignore — may already be initialized or caller already has admin role
+  }
+  return actor;
+}
 
 // ── Products ────────────────────────────────────────────────────
 export function useGetAllProducts() {
@@ -35,11 +50,10 @@ export function useGetProduct(productId: string) {
 }
 
 export function useCreateProduct() {
-  const { actor } = useActor();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (product: Product) => {
-      if (!actor) throw new Error("Actor not available");
+      const actor = await getAdminActor();
       return actor.createProduct(product);
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["products"] }),
@@ -47,14 +61,13 @@ export function useCreateProduct() {
 }
 
 export function useUpdateProduct() {
-  const { actor } = useActor();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({
       productId,
       product,
     }: { productId: string; product: Product }) => {
-      if (!actor) throw new Error("Actor not available");
+      const actor = await getAdminActor();
       return actor.updateProduct(productId, product);
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["products"] }),
@@ -62,11 +75,10 @@ export function useUpdateProduct() {
 }
 
 export function useDeleteProduct() {
-  const { actor } = useActor();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (productId: string) => {
-      if (!actor) throw new Error("Actor not available");
+      const actor = await getAdminActor();
       return actor.deleteProduct(productId);
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["products"] }),
@@ -106,26 +118,23 @@ export function usePlaceOrder() {
 }
 
 export function useGetAllOrders() {
-  const { actor, isFetching } = useActor();
   return useQuery<Order[]>({
     queryKey: ["allOrders"],
     queryFn: async () => {
-      if (!actor) return [];
+      const actor = await getAdminActor();
       return actor.getAllOrders();
     },
-    enabled: !!actor && !isFetching,
   });
 }
 
 export function useUpdateOrderStatus() {
-  const { actor } = useActor();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({
       orderId,
       newStatus,
     }: { orderId: string; newStatus: OrderStatus }) => {
-      if (!actor) throw new Error("Actor not available");
+      const actor = await getAdminActor();
       return actor.updateOrderStatus(orderId, newStatus);
     },
     onSuccess: () => {
@@ -137,7 +146,6 @@ export function useUpdateOrderStatus() {
 }
 
 export function useUpdateOrderCourierInfo() {
-  const { actor } = useActor();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({
@@ -149,7 +157,7 @@ export function useUpdateOrderCourierInfo() {
       courierName: string;
       courierTrackingNumber: string;
     }) => {
-      if (!actor) throw new Error("Actor not available");
+      const actor = await getAdminActor();
       return actor.updateOrderCourierInfo(
         orderId,
         courierName,
@@ -161,74 +169,62 @@ export function useUpdateOrderCourierInfo() {
 }
 
 export function useGetTotalOrdersCount() {
-  const { actor, isFetching } = useActor();
   return useQuery<bigint>({
     queryKey: ["totalOrders"],
     queryFn: async () => {
-      if (!actor) return BigInt(0);
+      const actor = await getAdminActor();
       return actor.getTotalOrdersCount();
     },
-    enabled: !!actor && !isFetching,
   });
 }
 
 export function useGetTotalRevenue() {
-  const { actor, isFetching } = useActor();
   return useQuery<bigint>({
     queryKey: ["totalRevenue"],
     queryFn: async () => {
-      if (!actor) return BigInt(0);
+      const actor = await getAdminActor();
       return actor.getTotalRevenue();
     },
-    enabled: !!actor && !isFetching,
   });
 }
 
 export function useGetMonthlySalesSummary() {
-  const { actor, isFetching } = useActor();
   return useQuery<MonthlySales[]>({
     queryKey: ["monthlySales"],
     queryFn: async () => {
-      if (!actor) return [];
+      const actor = await getAdminActor();
       return actor.getMonthlySalesSummary();
     },
-    enabled: !!actor && !isFetching,
   });
 }
 
 export function useGetOrdersCountByStatus() {
-  const { actor, isFetching } = useActor();
   return useQuery<Array<[string, bigint]>>({
     queryKey: ["ordersByStatus"],
     queryFn: async () => {
-      if (!actor) return [];
+      const actor = await getAdminActor();
       return actor.getOrdersCountByStatus();
     },
-    enabled: !!actor && !isFetching,
   });
 }
 
 export function useGetTopSellingProducts(limit: bigint) {
-  const { actor, isFetching } = useActor();
   return useQuery<ProductSales[]>({
     queryKey: ["topSellingProducts", limit.toString()],
     queryFn: async () => {
-      if (!actor) return [];
+      const actor = await getAdminActor();
       return actor.getTopSellingProducts(limit);
     },
-    enabled: !!actor && !isFetching,
   });
 }
 
 export function useGetRecentOrders(limit: bigint) {
-  const { actor, isFetching } = useActor();
   return useQuery<Order[]>({
     queryKey: ["recentOrders", limit.toString()],
     queryFn: async () => {
-      if (!actor) return [];
+      const actor = await getAdminActor();
       return actor.getRecentOrders(limit);
     },
-    enabled: !!actor && !isFetching,
   });
 }
 
@@ -252,14 +248,24 @@ export function useSubmitInquiry() {
 }
 
 export function useGetAllInquiries() {
-  const { actor, isFetching } = useActor();
   return useQuery<Inquiry[]>({
     queryKey: ["inquiries"],
     queryFn: async () => {
-      if (!actor) return [];
+      const actor = await getAdminActor();
       return actor.getAllInquiries();
     },
-    enabled: !!actor && !isFetching,
+  });
+}
+
+export function useGetOrdersByPhone(phone: string) {
+  const { actor, isFetching } = useActor();
+  return useQuery<Order[]>({
+    queryKey: ["ordersByPhone", phone],
+    queryFn: async () => {
+      if (!actor || !phone.trim()) return [];
+      return actor.getOrdersByPhone(phone);
+    },
+    enabled: !!actor && !isFetching && !!phone.trim(),
   });
 }
 

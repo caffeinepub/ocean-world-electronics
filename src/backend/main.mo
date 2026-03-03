@@ -1,20 +1,20 @@
-import Int "mo:core/Int";
 import Map "mo:core/Map";
-import Nat "mo:core/Nat";
-import Time "mo:core/Time";
 import Text "mo:core/Text";
 import Order "mo:core/Order";
-import Runtime "mo:core/Runtime";
-import List "mo:core/List";
 import Array "mo:core/Array";
-import Migration "migration";
+import Int "mo:core/Int";
+import Time "mo:core/Time";
+import List "mo:core/List";
+import Nat "mo:core/Nat";
+import Runtime "mo:core/Runtime";
+
 import Principal "mo:core/Principal";
 import MixinStorage "blob-storage/Mixin";
 import MixinAuthorization "authorization/MixinAuthorization";
 import AccessControl "authorization/access-control";
 
-// Apply migration
-(with migration = Migration.run)
+
+
 actor {
   // Authorization Setup
   let accessControlState = AccessControl.initState();
@@ -24,7 +24,7 @@ actor {
   include MixinStorage();
 
   // Types
-  type OrderStatus = {
+  public type OrderStatus = {
     #pending;
     #confirmed;
     #shipped;
@@ -33,7 +33,7 @@ actor {
     #cancelled;
   };
 
-  type Product = {
+  public type Product = {
     id : Text;
     name : Text;
     manufacturer : Text;
@@ -86,12 +86,6 @@ actor {
     totalQuantity : Nat;
   };
 
-  module Product {
-    public func compare(p1 : Product, p2 : Product) : Order.Order {
-      Text.compare(p1.id, p2.id);
-    };
-  };
-
   // Storage
   let products = Map.empty<Text, Product>();
   let orders = Map.empty<Text, Order>();
@@ -106,7 +100,7 @@ actor {
     if (products.isEmpty()) {
       let sampleProducts = [
         {
-          id = "1";
+          id = "pr-1";
           name = "Smartphone X";
           manufacturer = "Apple";
           category = "Smartphone";
@@ -118,7 +112,7 @@ actor {
           isAvailable = true;
         },
         {
-          id = "2";
+          id = "pr-2";
           name = "Phone Charger";
           manufacturer = "Samsung";
           category = "Accessory";
@@ -130,7 +124,7 @@ actor {
           isAvailable = true;
         },
         {
-          id = "3";
+          id = "pr-3";
           name = "Knitted Socks";
           manufacturer = "ACME Co.";
           category = "Accessory";
@@ -142,7 +136,7 @@ actor {
           isAvailable = true;
         },
         {
-          id = "4";
+          id = "pr-4";
           name = "SayHi Earphones";
           manufacturer = "SayHi";
           category = "Earphones";
@@ -194,7 +188,7 @@ actor {
 
   public query ({ caller }) func getAllProducts() : async [Product] {
     // Public read access - no authorization required
-    products.values().toArray().sort();
+    products.values().toArray();
   };
 
   public shared ({ caller }) func createProduct(product : Product) : async () {
@@ -223,8 +217,7 @@ actor {
 
   // Order Management
   public shared ({ caller }) func placeOrder(customerName : Text, phone : Text, address : Text, quantity : Nat, productId : Text, specialDescription : Text) : async () {
-    // Allow guests to place orders (e-commerce public function)
-    // No authorization check - this is intentionally public for customer orders
+    // No authorization check - this should be public for placing orders
 
     // Validate input
     if (customerName.size() == 0) {
@@ -239,8 +232,11 @@ actor {
     if (quantity == 0) {
       Runtime.trap("Quantity must be greater than 0");
     };
+    if (not products.containsKey(productId)) {
+      Runtime.trap("Product does not exist");
+    };
 
-    let orderId = "order-" # productId; // Fallback to using productId as part of orderId
+    let orderId = "ord-" # Time.now().toText();
     let order : Order = {
       id = orderId;
       customerName;
@@ -262,6 +258,17 @@ actor {
       Runtime.trap("Unauthorized: Only admins can perform this action");
     };
     orders.values().toArray();
+  };
+
+  public query ({ caller }) func getOrdersByPhone(phone : Text) : async [Order] {
+    // No auth required for public search
+    let filteredOrders = List.empty<Order>();
+    for (order in orders.values()) {
+      if (order.phone.contains(#text (phone)) or phone.contains(#text (order.phone))) {
+        filteredOrders.add(order);
+      };
+    };
+    filteredOrders.toArray();
   };
 
   public shared ({ caller }) func updateOrderStatus(orderId : Text, newStatus : OrderStatus) : async () {
@@ -391,10 +398,8 @@ actor {
 
   // Inquiry Management
   public shared ({ caller }) func submitInquiry(name : Text, phone : Text, message : Text) : async () {
-    // Allow guests to submit inquiries (public customer support function)
-    // No authorization check - this is intentionally public for customer inquiries
+    // Public endpoint - no auth
 
-    // Validate input
     if (name.size() == 0) {
       Runtime.trap("Name is required");
     };
@@ -405,7 +410,7 @@ actor {
       Runtime.trap("Message is required");
     };
 
-    let inquiryId = "inquiry-" # name # phone; // Fallback to using name and phone as part of inquiryId
+    let inquiryId = "inq-" # Time.now().toText();
     let inquiry : Inquiry = {
       name;
       phone;
@@ -422,7 +427,7 @@ actor {
     inquiries.values().toArray();
   };
 
-  // Analytics Functions (Admin Only)
+  // Analytics Functions
   public query ({ caller }) func getTotalRevenue() : async Nat {
     if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
       Runtime.trap("Unauthorized: Only admins can perform this action");
@@ -486,7 +491,7 @@ actor {
     let secondsPerDay : Int = 86_400;
     let daysPerYear : Int = 365;
 
-    // Calculate approximate current year (simplified)
+    // Calculate approximate current year
     let currentYear : Nat = 2024;
 
     var monthlySales = Map.empty<Nat, (Nat, Nat)>();

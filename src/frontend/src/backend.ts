@@ -177,6 +177,7 @@ export interface backendInterface {
     getCallerUserProfile(): Promise<UserProfile | null>;
     getCallerUserRole(): Promise<UserRole>;
     getMonthlySalesSummary(): Promise<Array<MonthlySales>>;
+    getOrdersByPhone(phone: string): Promise<Array<Order>>;
     getOrdersByStatus(status: OrderStatus): Promise<Array<Order>>;
     getOrdersCountByStatus(): Promise<Array<[string, bigint]>>;
     getProduct(productId: string): Promise<Product>;
@@ -419,6 +420,20 @@ export class Backend implements backendInterface {
         } else {
             const result = await this.actor.getMonthlySalesSummary();
             return result;
+        }
+    }
+    async getOrdersByPhone(arg0: string): Promise<Array<Order>> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getOrdersByPhone(arg0);
+                return from_candid_vec_n10(this._uploadFile, this._downloadFile, result);
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getOrdersByPhone(arg0);
+            return from_candid_vec_n10(this._uploadFile, this._downloadFile, result);
         }
     }
     async getOrdersByStatus(arg0: OrderStatus): Promise<Array<Order>> {

@@ -77,6 +77,7 @@ export interface backendInterface {
     getCallerUserProfile(): Promise<UserProfile | null>;
     getCallerUserRole(): Promise<UserRole>;
     getMonthlySalesSummary(): Promise<Array<MonthlySales>>;
+    getOrdersByPhone(phone: string): Promise<Array<Order>>;
     getOrdersByStatus(status: OrderStatus): Promise<Array<Order>>;
     getOrdersCountByStatus(): Promise<Array<[string, bigint]>>;
     getProduct(productId: string): Promise<Product>;

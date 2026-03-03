@@ -33,9 +33,9 @@ import {
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { type Order, OrderStatus, type Product } from "../backend.d";
+import { OrderStatus, type Product } from "../backend.d";
 import OrderStepper from "../components/OrderStepper";
-import { useGetAllOrders, useGetAllProducts } from "../hooks/useQueries";
+import { useGetAllProducts, useGetOrdersByPhone } from "../hooks/useQueries";
 import {
   type OrderComplaint,
   type OrderFeedback,
@@ -343,7 +343,11 @@ export default function TrackOrderPage() {
     () => getComplaints(),
   );
 
-  const { data: allOrders, isLoading: ordersLoading } = useGetAllOrders();
+  const {
+    data: matchedOrders,
+    isLoading: ordersLoading,
+    refetch: refetchOrders,
+  } = useGetOrdersByPhone(submittedPhone);
   const { data: allProducts, isLoading: productsLoading } = useGetAllProducts();
   const settings = getStoreSettings();
   const courierInfos = getCourierInfos();
@@ -360,18 +364,17 @@ export default function TrackOrderPage() {
     return new Map(allProducts.map((p) => [p.id, p]));
   }, [allProducts]);
 
-  const matchedOrders = useMemo<Order[]>(() => {
-    if (!allOrders || !submittedPhone.trim()) return [];
-    const q = submittedPhone.trim();
-    return allOrders.filter((o) => o.phone.includes(q));
-  }, [allOrders, submittedPhone]);
-
-  const isLoading = ordersLoading || productsLoading;
+  const isLoading = (ordersLoading || productsLoading) && hasSearched;
 
   function handleSearch(e: React.FormEvent) {
     e.preventDefault();
-    setSubmittedPhone(phoneInput.trim());
+    const trimmed = phoneInput.trim();
+    setSubmittedPhone(trimmed);
     setHasSearched(true);
+    // If phone didn't change, manually refetch
+    if (trimmed === submittedPhone) {
+      refetchOrders();
+    }
   }
 
   function refreshLocalStorage() {
@@ -450,7 +453,7 @@ export default function TrackOrderPage() {
 
         {/* Results */}
         <AnimatePresence mode="wait">
-          {isLoading && hasSearched ? (
+          {isLoading ? (
             <motion.div
               key="loading"
               initial={{ opacity: 0 }}
@@ -470,7 +473,7 @@ export default function TrackOrderPage() {
                 </div>
               ))}
             </motion.div>
-          ) : hasSearched && matchedOrders.length === 0 ? (
+          ) : hasSearched && (!matchedOrders || matchedOrders.length === 0) ? (
             <motion.div
               key="empty"
               initial={{ opacity: 0, y: 10 }}
@@ -494,7 +497,7 @@ export default function TrackOrderPage() {
                 Need help? Contact us →
               </Link>
             </motion.div>
-          ) : hasSearched && matchedOrders.length > 0 ? (
+          ) : hasSearched && matchedOrders && matchedOrders.length > 0 ? (
             <motion.div
               key="results"
               initial={{ opacity: 0 }}

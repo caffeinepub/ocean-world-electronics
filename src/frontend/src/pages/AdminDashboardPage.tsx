@@ -290,8 +290,19 @@ export default function AdminDashboardPage() {
         toast.success("Product added successfully");
       }
       setProductDialogOpen(false);
-    } catch {
-      toast.error("Failed to save product");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (
+        msg.toLowerCase().includes("unauthorized") ||
+        msg.toLowerCase().includes("not authorized") ||
+        msg.toLowerCase().includes("caller is not admin")
+      ) {
+        toast.error(
+          "Authorization error — please log out and log back in, then try again.",
+        );
+      } else {
+        toast.error("Failed to save product. Please try again.");
+      }
     }
   }
 
