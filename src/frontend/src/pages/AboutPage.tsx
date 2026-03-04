@@ -2,12 +2,14 @@ import { Button } from "@/components/ui/button";
 import { Link } from "@tanstack/react-router";
 import {
   Heart,
+  Info,
   MapPin,
   MessageCircle,
   Phone,
   Shield,
   ShoppingCart,
   Star,
+  Truck,
   Zap,
 } from "lucide-react";
 import { motion } from "motion/react";
@@ -289,6 +291,40 @@ export default function AboutPage() {
               </motion.div>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* Delivery Disclaimer */}
+      <section className="py-10 bg-background">
+        <div className="container mx-auto px-4 max-w-4xl">
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="bg-blue-50 border border-blue-200 rounded-2xl p-6 flex gap-4 items-start"
+          >
+            <div className="shrink-0 mt-0.5">
+              <div className="h-10 w-10 rounded-xl bg-blue-100 flex items-center justify-center">
+                <Truck className="h-5 w-5 text-blue-600" />
+              </div>
+            </div>
+            <div>
+              <div className="flex items-center gap-2 mb-1.5">
+                <h3 className="font-heading font-bold text-base text-blue-900">
+                  Delivery Information
+                </h3>
+                <Info className="h-4 w-4 text-blue-500" />
+              </div>
+              <p className="text-sm font-display text-blue-800 leading-relaxed">
+                Please note that the estimated delivery date shown on your order
+                is approximate and may vary slightly depending on location,
+                courier availability, and other factors. We do{" "}
+                <strong>not</strong> guarantee a fixed delivery date. However,
+                we are 100% committed to ensuring your order reaches you as
+                quickly as possible. Thank you for your patience and trust.
+              </p>
+            </div>
+          </motion.div>
         </div>
       </section>
 

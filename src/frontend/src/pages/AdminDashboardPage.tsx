@@ -99,12 +99,14 @@ import {
   type StoreSettings,
   getComplaints,
   getCourierInfos,
+  getEstimatedDeliveries,
   getFeedbacks,
   getOrderOverrides,
   getProfitData,
   getStoreSettings,
   saveComplaint,
   saveCourierInfo,
+  saveEstimatedDelivery,
   saveOrderOverride,
   saveProfitEntry,
   saveStoreSettings,
@@ -212,6 +214,7 @@ export default function AdminDashboardPage() {
   const [orderForm, setOrderForm] = useState<OrderOverride>({});
   const [orderCourierName, setOrderCourierName] = useState("");
   const [orderCourierTracking, setOrderCourierTracking] = useState("");
+  const [orderEstDelivery, setOrderEstDelivery] = useState("");
   const [orderOverrides, setOrderOverrides] = useState<
     Record<string, OrderOverride>
   >(() => getOrderOverrides());
@@ -342,6 +345,7 @@ export default function AdminDashboardPage() {
     const override = orderOverrides[order.id] ?? {};
     const courierInfos = getCourierInfos();
     const existing = courierInfos[order.id];
+    const estDeliveries = getEstimatedDeliveries();
     setOrderForm({
       customerName: override.customerName ?? order.customerName,
       phone: override.phone ?? order.phone,
@@ -354,6 +358,7 @@ export default function AdminDashboardPage() {
     setOrderCourierTracking(
       existing?.courierTrackingNumber ?? order.courierTrackingNumber ?? "",
     );
+    setOrderEstDelivery(estDeliveries[order.id] ?? "");
     setOrderDialogOpen(true);
   }
 
@@ -361,6 +366,11 @@ export default function AdminDashboardPage() {
     if (!editingOrder) return;
     saveOrderOverride(editingOrder.id, orderForm);
     setOrderOverrides(getOrderOverrides());
+
+    // Save estimated delivery date
+    if (orderEstDelivery) {
+      saveEstimatedDelivery(editingOrder.id, orderEstDelivery);
+    }
 
     // Save courier info to localStorage
     if (orderCourierName || orderCourierTracking) {
@@ -2261,6 +2271,23 @@ export default function AdminDashboardPage() {
                   />
                 </div>
               </div>
+            </div>
+
+            {/* Estimated Delivery Date */}
+            <div className="sm:col-span-2 border-t border-border pt-4">
+              <p className="text-sm font-display font-medium text-foreground mb-3">
+                Estimated Delivery Date
+              </p>
+              <Input
+                type="date"
+                value={orderEstDelivery}
+                onChange={(e) => setOrderEstDelivery(e.target.value)}
+                className="font-display h-11 max-w-xs"
+                data-ocid="admin.orders.est_delivery.input"
+              />
+              <p className="text-xs text-muted-foreground font-display mt-1">
+                This will be shown to the customer on the Track Order page
+              </p>
             </div>
           </div>
           <DialogFooter className="gap-3">

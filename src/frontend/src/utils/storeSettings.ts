@@ -295,6 +295,30 @@ export function localOrderToOrder(o: LocalOrder): Order {
   };
 }
 
+// ── Estimated Delivery Dates ─────────────────────────────────────
+const ESTIMATED_DELIVERY_KEY = "ow_estimated_deliveries";
+
+export function getEstimatedDeliveries(): Record<string, string> {
+  try {
+    const raw = localStorage.getItem(ESTIMATED_DELIVERY_KEY);
+    if (!raw) return {};
+    return JSON.parse(raw) as Record<string, string>;
+  } catch {
+    return {};
+  }
+}
+
+export function saveEstimatedDelivery(orderId: string, date: string): void {
+  const existing = getEstimatedDeliveries();
+  existing[orderId] = date;
+  localStorage.setItem(ESTIMATED_DELIVERY_KEY, JSON.stringify(existing));
+}
+
+// ── Cancel Order (by customer on Track Order page) ────────────────
+export function cancelLocalOrder(orderId: string): void {
+  updateLocalOrderStatus(orderId, "cancelled");
+}
+
 // ── Profit Tracker ────────────────────────────────────────────────
 export interface ProductProfitEntry {
   productId: string;

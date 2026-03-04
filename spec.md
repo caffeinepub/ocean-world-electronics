@@ -1,32 +1,28 @@
 # Ocean World Electronics
 
 ## Current State
-Full-stack e-commerce website for Ocean World Electronics (Delhi). Features: admin login (username: bhawna paneru / password: 1995@Bhawna), product management, order management, cart, track order, feedback, complaints, profit tracker, settings (UPI/QR/contact), delivery partner tracking. Products are stored in localStorage. Product image is currently set via a text URL input field. Orders tab shows all orders in a flat list sorted by timestamp.
+Full e-commerce website with admin dashboard, product management, order tracking, cart, feedback, complaints, courier info, and profit tracker. All data stored in localStorage. Admin login via hardcoded credentials. Track Order page lets customers find orders by phone number.
 
 ## Requested Changes (Diff)
 
 ### Add
-- Product image upload button in the Add/Edit Product dialog: admin can pick a photo from their device (file picker), which gets stored as a base64 data URL in `productForm.imageUrl`. Show a preview thumbnail once selected. Keep the URL text input as a secondary/fallback option (or replace entirely with upload).
-- "Completed Orders" section in the Orders tab: a separate collapsible/section below the main orders table that shows only delivered orders, with a green checkmark (CheckCircle2 icon) badge on each row.
-- Pending orders sort priority: non-delivered, non-cancelled orders appear at the top of the main orders table. Delivered and cancelled orders sink to the bottom (or move to Completed section only).
+- Cancel Order button on Track Order page (only visible when order status is "pending" or "confirmed")
+- Estimated Delivery Date field in Admin Order Edit dialog
+- Estimated delivery date display on Track Order page per order
+- Delivery disclaimer text on About Us page
 
 ### Modify
-- AdminDashboardPage.tsx: 
-  - In the Product Add/Edit dialog, replace the plain "Image URL" text input with an "Upload Photo" button (file input hidden, triggered by button click). Display a thumbnail preview below the button when an image is loaded. Keep an optional URL fallback input below the upload section labeled "Or paste image URL".
-  - In the Orders tab, split rendering into two sections: (1) Active Orders table (pending/confirmed/shipped/out_for_delivery/cancelled) sorted so pending+confirmed first, then shipped/out_for_delivery, then cancelled. (2) Completed Orders section (delivered) below, with a green CheckCircle2 icon on each row and a "Completed" green badge.
+- `storeSettings.ts`: Add `estimatedDeliveryDate` to `LocalOrder` and `updateLocalOrderDetails` already supports partials; add `saveOrderEstimatedDelivery` helper and `getOrderEstimatedDeliveries` map
+- `TrackOrderPage.tsx`: Show estimated delivery date badge; show Cancel button only for pending/confirmed; call cancel handler that updates localStorage status
+- `AdminDashboardPage.tsx`: Add estimated delivery date input in Order Edit dialog; save to localStorage on save
+- `AboutPage.tsx`: Add delivery disclaimer card/callout in "Our Story" section or just before CTA
 
 ### Remove
-- Nothing removed.
+- Nothing
 
 ## Implementation Plan
-1. In `AdminDashboardPage.tsx`, add a `productImageFileRef` ref and a `handleProductImageUpload` handler that reads the selected file as base64 and sets `productForm.imageUrl`.
-2. Replace the Image URL `<Input>` field in the product dialog with:
-   - Hidden `<input type="file" accept="image/*">` tied to the ref
-   - "Upload Photo" button that triggers the hidden input
-   - Thumbnail preview (`<img>`) shown when `productForm.imageUrl` is set
-   - Small "Or paste image URL" text input below as fallback
-3. In the Orders tab rendering, split `orders` into:
-   - `activeOrders`: filter out `delivered`, sort by status priority (pending > confirmed > shipped > out_for_delivery > cancelled)
-   - `completedOrders`: filter for `delivered`
-4. Render `activeOrders` in the existing table.
-5. Below that, render a "Completed Orders" collapsible section with `completedOrders`, each row having a `<CheckCircle2 className="text-green-500">` icon and a green "Delivered" badge.
+1. Add `ORDER_ESTIMATED_DELIVERY_KEY` storage helpers in `storeSettings.ts`
+2. Add cancel order function in `storeSettings.ts`
+3. Update `AdminDashboardPage.tsx` Order Edit dialog to include estimated delivery date field
+4. Update `TrackOrderPage.tsx` to show estimated delivery date and cancel button
+5. Update `AboutPage.tsx` with delivery disclaimer

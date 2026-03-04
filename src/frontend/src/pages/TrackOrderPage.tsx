@@ -1,3 +1,14 @@
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,6 +32,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Link, useSearch } from "@tanstack/react-router";
 import {
   Calendar,
+  Clock,
   ExternalLink,
   MapPin,
   Package,
@@ -29,6 +41,7 @@ import {
   ShoppingBag,
   Star,
   Truck,
+  XCircle,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
@@ -39,12 +52,15 @@ import { useGetAllProducts, useGetOrdersByPhone } from "../hooks/useQueries";
 import {
   type OrderComplaint,
   type OrderFeedback,
+  cancelLocalOrder,
   getComplaints,
   getCourierInfos,
+  getEstimatedDeliveries,
   getFeedbacks,
   getStoreSettings,
   saveComplaint,
   saveFeedback,
+  updateLocalOrderStatus,
 } from "../utils/storeSettings";
 
 function formatPrice(price: bigint): string {
@@ -342,6 +358,13 @@ export default function TrackOrderPage() {
   const [complaints, setComplaints] = useState<Record<string, OrderComplaint>>(
     () => getComplaints(),
   );
+  const [estimatedDeliveries, setEstimatedDeliveries] = useState<
+    Record<string, string>
+  >(() => getEstimatedDeliveries());
+  // Local cancelled order IDs (so cancel reflects immediately without refetch)
+  const [localCancelledIds, setLocalCancelledIds] = useState<Set<string>>(
+    () => new Set(),
+  );
 
   const {
     data: matchedOrders,
@@ -380,6 +403,15 @@ export default function TrackOrderPage() {
   function refreshLocalStorage() {
     setFeedbacks(getFeedbacks());
     setComplaints(getComplaints());
+    setEstimatedDeliveries(getEstimatedDeliveries());
+  }
+
+  function handleCancelOrder(orderId: string) {
+    cancelLocalOrder(orderId);
+    updateLocalOrderStatus(orderId, "cancelled");
+    setLocalCancelledIds((prev) => new Set([...prev, orderId]));
+    toast.success("Order cancelled successfully.");
+    refetchOrders();
   }
 
   return (
@@ -523,8 +555,16 @@ export default function TrackOrderPage() {
                   const statusInfo =
                     STATUS_BADGE[order.status] ??
                     STATUS_BADGE[OrderStatus.pending];
-                  const isCancelled = order.status === OrderStatus.cancelled;
+                  const isCancelled =
+                    order.status === OrderStatus.cancelled ||
+                    localCancelledIds.has(order.id);
                   const isDelivered = order.status === OrderStatus.delivered;
+                  const canCancel =
+                    !isCancelled &&
+                    !isDelivered &&
+                    (order.status === OrderStatus.pending ||
+                      order.status === OrderStatus.confirmed);
+                  const estDelivery = estimatedDeliveries[order.id];
 
                   // Get courier info
                   const courierFromStore = courierInfos[order.id];
@@ -628,6 +668,32 @@ export default function TrackOrderPage() {
                         </p>
                         <OrderStepper status={order.status} />
 
+                        {/* Estimated Delivery Date */}
+                        {estDelivery && !isCancelled && (
+                          <div className="mt-3 pt-3 border-t border-border">
+                            <div className="flex items-center gap-2">
+                              <Clock className="h-3.5 w-3.5 text-ocean-blue" />
+                              <span className="text-xs font-display text-muted-foreground">
+                                Estimated Delivery:{" "}
+                                <span className="font-semibold text-foreground">
+                                  {new Date(estDelivery).toLocaleDateString(
+                                    "en-IN",
+                                    {
+                                      day: "numeric",
+                                      month: "long",
+                                      year: "numeric",
+                                    },
+                                  )}
+                                </span>
+                              </span>
+                            </div>
+                            <p className="text-xs text-muted-foreground font-display mt-1 ml-5 italic">
+                              Note: Delivery dates are approximate and may vary
+                              slightly. We ensure delivery as soon as possible.
+                            </p>
+                          </div>
+                        )}
+
                         {/* Courier tracking */}
                         {courierName && courierTracking && (
                           <div className="mt-4 pt-3 border-t border-border">
@@ -692,6 +758,58 @@ export default function TrackOrderPage() {
                             complaint={complaint}
                             onSubmit={refreshLocalStorage}
                           />
+                        )}
+
+                        {/* Cancel Order button - only for pending/confirmed */}
+                        {canCancel && (
+                          <div className="mt-3 pt-3 border-t border-border">
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="text-xs font-display h-7 text-destructive border-destructive/30 hover:bg-destructive/10"
+                                  data-ocid={`track.cancel_button.${idx + 1}`}
+                                >
+                                  <XCircle className="h-3.5 w-3.5 mr-1.5" />
+                                  Cancel Order
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent
+                                data-ocid={`track.cancel.dialog.${idx + 1}`}
+                              >
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle className="font-heading">
+                                    Cancel this order?
+                                  </AlertDialogTitle>
+                                  <AlertDialogDescription className="font-display">
+                                    Are you sure you want to cancel Order #
+                                    {order.id.slice(0, 8).toUpperCase()}? This
+                                    action cannot be undone. If you already
+                                    paid, please contact us for a refund.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel
+                                    className="font-display"
+                                    data-ocid={`track.cancel.cancel_button.${idx + 1}`}
+                                  >
+                                    Keep Order
+                                  </AlertDialogCancel>
+                                  <AlertDialogAction
+                                    onClick={() => handleCancelOrder(order.id)}
+                                    className="bg-destructive text-destructive-foreground font-display hover:bg-destructive/90"
+                                    data-ocid={`track.cancel.confirm_button.${idx + 1}`}
+                                  >
+                                    Yes, Cancel Order
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                            <p className="text-xs text-muted-foreground font-display mt-1.5">
+                              Orders can only be cancelled before shipping.
+                            </p>
+                          </div>
                         )}
                       </div>
                     </motion.div>
