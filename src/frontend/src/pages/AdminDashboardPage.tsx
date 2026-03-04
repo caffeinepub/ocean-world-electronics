@@ -40,6 +40,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useNavigate } from "@tanstack/react-router";
 import {
+  CheckCircle2,
+  ChevronDown,
+  ChevronUp,
   IndianRupee,
   Loader2,
   LogOut,
@@ -55,6 +58,8 @@ import {
   Star,
   Trash2,
   TrendingUp,
+  Upload,
+  X,
 } from "lucide-react";
 import { motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
@@ -90,15 +95,18 @@ import {
   type OrderComplaint,
   type OrderFeedback,
   type OrderOverride,
+  type ProductProfitEntry,
   type StoreSettings,
   getComplaints,
   getCourierInfos,
   getFeedbacks,
   getOrderOverrides,
+  getProfitData,
   getStoreSettings,
   saveComplaint,
   saveCourierInfo,
   saveOrderOverride,
+  saveProfitEntry,
   saveStoreSettings,
 } from "../utils/storeSettings";
 
@@ -214,6 +222,10 @@ export default function AdminDashboardPage() {
   );
   const [settingsSaving, setSettingsSaving] = useState(false);
   const qrFileRef = useRef<HTMLInputElement>(null);
+  const productImageFileRef = useRef<HTMLInputElement>(null);
+
+  // Completed orders section toggle
+  const [completedExpanded, setCompletedExpanded] = useState(false);
 
   // Feedback + complaints (from localStorage)
   const [feedbacks, _setFeedbacks] = useState<Record<string, OrderFeedback>>(
@@ -222,6 +234,15 @@ export default function AdminDashboardPage() {
   const [complaints, setComplaints] = useState<Record<string, OrderComplaint>>(
     () => getComplaints(),
   );
+
+  // Profit tracker state
+  const [profitData, setProfitData] = useState<
+    Record<string, ProductProfitEntry>
+  >(() => getProfitData());
+  // Local edits to profit rows (not yet saved)
+  const [profitEdits, setProfitEdits] = useState<
+    Record<string, Partial<ProductProfitEntry>>
+  >({});
 
   useEffect(() => {
     if (!isAuthed) {
@@ -405,6 +426,18 @@ export default function AdminDashboardPage() {
     reader.readAsDataURL(file);
   }
 
+  // Product image upload handler
+  function handleProductImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const result = ev.target?.result as string;
+      setProductForm((p) => ({ ...p, imageUrl: result }));
+    };
+    reader.readAsDataURL(file);
+  }
+
   // Complaint status toggle
   function toggleComplaintStatus(orderId: string) {
     const existing = complaints[orderId];
@@ -443,6 +476,93 @@ export default function AdminDashboardPage() {
 
   const feedbackList = Object.values(feedbacks);
   const complaintList = Object.values(complaints);
+
+  // ── Profit Tracker helpers ────────────────────────────────────
+  function getProfitEntry(
+    productId: string,
+    productName: string,
+    sellPrice: number,
+  ): ProductProfitEntry {
+    const saved = profitData[productId];
+    const edits = profitEdits[productId] ?? {};
+    return {
+      productId,
+      productName,
+      costPrice: edits.costPrice ?? saved?.costPrice ?? 0,
+      sellPrice: edits.sellPrice ?? saved?.sellPrice ?? sellPrice,
+      labourCharges: edits.labourCharges ?? saved?.labourCharges ?? 0,
+    };
+  }
+
+  function handleProfitEdit(
+    productId: string,
+    field: keyof ProductProfitEntry,
+    value: number | string,
+  ) {
+    setProfitEdits((prev) => ({
+      ...prev,
+      [productId]: {
+        ...prev[productId],
+        [field]:
+          typeof value === "string" ? Number.parseFloat(value) || 0 : value,
+      },
+    }));
+  }
+
+  function handleProfitSave(entry: ProductProfitEntry) {
+    saveProfitEntry(entry);
+    setProfitData(getProfitData());
+    // Clear edits for this product
+    setProfitEdits((prev) => {
+      const next = { ...prev };
+      delete next[entry.productId];
+      return next;
+    });
+    toast.success(`Profit data saved for ${entry.productName}`);
+  }
+
+  // Calculate total profit metrics from orders + profit data
+  const totalRevenueNum = totalRevenue !== undefined ? Number(totalRevenue) : 0;
+
+  const totalCostEstimate = (products ?? []).reduce((sum, p) => {
+    const entry = profitData[p.id];
+    if (!entry) return sum;
+    // Find how many of this product were sold from orders
+    const soldQty = (orders ?? [])
+      .filter((o) => o.productId === p.id && o.status !== "cancelled")
+      .reduce((s, o) => s + Number(o.quantity), 0);
+    return sum + (entry.costPrice + entry.labourCharges) * soldQty;
+  }, 0);
+
+  const totalProfitEstimate = totalRevenueNum - totalCostEstimate;
+  const profitMarginPct =
+    totalRevenueNum > 0
+      ? ((totalProfitEstimate / totalRevenueNum) * 100).toFixed(1)
+      : "0.0";
+
+  // Build monthly profit chart data
+  const profitChartData = (monthlySales ?? [])
+    .sort((a, b) => {
+      const yearDiff = Number(a.year) - Number(b.year);
+      return yearDiff !== 0 ? yearDiff : Number(a.month) - Number(b.month);
+    })
+    .slice(-6)
+    .map((s) => {
+      const rev = Number(s.revenue);
+      // Rough cost per month: totalCostEstimate / total sold * this month's orders
+      const orderCount = Number(s.orderCount);
+      const avgCostPerOrder =
+        totalRevenueNum > 0 && (orders ?? []).length > 0
+          ? totalCostEstimate / Math.max((orders ?? []).length, 1)
+          : 0;
+      const costEst = avgCostPerOrder * orderCount;
+      return {
+        name: `${MONTHS[Number(s.month) - 1]} '${String(Number(s.year)).slice(2)}`,
+        revenue: rev,
+        cost: Math.round(costEst),
+        profit: Math.round(rev - costEst),
+      };
+    });
 
   return (
     <div className="min-h-screen bg-background">
@@ -762,6 +882,14 @@ export default function AdminDashboardPage() {
             >
               Complaints ({complaintList.length})
             </TabsTrigger>
+            <TabsTrigger
+              value="profit"
+              className="font-display"
+              data-ocid="admin.profit.tab"
+            >
+              <TrendingUp className="h-3.5 w-3.5 mr-1.5" />
+              Profit Tracker
+            </TabsTrigger>
           </TabsList>
 
           {/* Orders Tab */}
@@ -792,149 +920,233 @@ export default function AdminDashboardPage() {
                   </p>
                 </div>
               ) : (
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="bg-secondary/50">
-                        <TableHead className="font-display text-xs uppercase tracking-wider">
-                          Order ID
-                        </TableHead>
-                        <TableHead className="font-display text-xs uppercase tracking-wider">
-                          Customer
-                        </TableHead>
-                        <TableHead className="font-display text-xs uppercase tracking-wider">
-                          Phone
-                        </TableHead>
-                        <TableHead className="font-display text-xs uppercase tracking-wider">
-                          Product
-                        </TableHead>
-                        <TableHead className="font-display text-xs uppercase tracking-wider">
-                          Qty
-                        </TableHead>
-                        <TableHead className="font-display text-xs uppercase tracking-wider">
-                          Address
-                        </TableHead>
-                        <TableHead className="font-display text-xs uppercase tracking-wider">
-                          Courier
-                        </TableHead>
-                        <TableHead className="font-display text-xs uppercase tracking-wider">
-                          Status
-                        </TableHead>
-                        <TableHead className="font-display text-xs uppercase tracking-wider">
-                          Date
-                        </TableHead>
-                        <TableHead className="font-display text-xs uppercase tracking-wider">
-                          Edit
-                        </TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {orders.map((order, idx) => {
-                        const merged = getMergedOrder(order);
-                        const courierInfos = getCourierInfos();
-                        const courier =
-                          courierInfos[order.id] ??
-                          (order.courierName
-                            ? {
-                                courierName: order.courierName,
-                                courierTrackingNumber:
-                                  order.courierTrackingNumber ?? "",
-                              }
-                            : null);
-                        return (
-                          <TableRow
-                            key={order.id}
-                            data-ocid={`admin.orders.item.${idx + 1}`}
-                            className="hover:bg-secondary/30 transition-colors"
+                (() => {
+                  const STATUS_ORDER: Record<string, number> = {
+                    pending: 0,
+                    confirmed: 1,
+                    shipped: 2,
+                    out_for_delivery: 3,
+                    cancelled: 4,
+                  };
+                  const activeOrders = [...orders]
+                    .filter((o) => o.status !== "delivered")
+                    .sort(
+                      (a, b) =>
+                        (STATUS_ORDER[a.status] ?? 5) -
+                        (STATUS_ORDER[b.status] ?? 5),
+                    );
+                  const completedOrders = orders.filter(
+                    (o) => o.status === "delivered",
+                  );
+
+                  const orderTableHeaders = (
+                    <TableRow className="bg-secondary/50">
+                      <TableHead className="font-display text-xs uppercase tracking-wider">
+                        Order ID
+                      </TableHead>
+                      <TableHead className="font-display text-xs uppercase tracking-wider">
+                        Customer
+                      </TableHead>
+                      <TableHead className="font-display text-xs uppercase tracking-wider">
+                        Phone
+                      </TableHead>
+                      <TableHead className="font-display text-xs uppercase tracking-wider">
+                        Product
+                      </TableHead>
+                      <TableHead className="font-display text-xs uppercase tracking-wider">
+                        Qty
+                      </TableHead>
+                      <TableHead className="font-display text-xs uppercase tracking-wider">
+                        Address
+                      </TableHead>
+                      <TableHead className="font-display text-xs uppercase tracking-wider">
+                        Courier
+                      </TableHead>
+                      <TableHead className="font-display text-xs uppercase tracking-wider">
+                        Status
+                      </TableHead>
+                      <TableHead className="font-display text-xs uppercase tracking-wider">
+                        Date
+                      </TableHead>
+                      <TableHead className="font-display text-xs uppercase tracking-wider">
+                        Edit
+                      </TableHead>
+                    </TableRow>
+                  );
+
+                  const renderOrderRow = (
+                    order: Order,
+                    idx: number,
+                    isCompleted = false,
+                  ) => {
+                    const merged = getMergedOrder(order);
+                    const courierInfos = getCourierInfos();
+                    const courier =
+                      courierInfos[order.id] ??
+                      (order.courierName
+                        ? {
+                            courierName: order.courierName,
+                            courierTrackingNumber:
+                              order.courierTrackingNumber ?? "",
+                          }
+                        : null);
+                    return (
+                      <TableRow
+                        key={order.id}
+                        data-ocid={`admin.orders.item.${idx + 1}`}
+                        className={
+                          isCompleted
+                            ? "bg-green-50/40 hover:bg-green-50/60 transition-colors"
+                            : "hover:bg-secondary/30 transition-colors"
+                        }
+                      >
+                        <TableCell className="font-display text-xs text-muted-foreground max-w-24 truncate">
+                          {isCompleted && (
+                            <CheckCircle2 className="h-4 w-4 text-green-500 mr-1 inline-block" />
+                          )}
+                          {order.id.slice(0, 12)}...
+                        </TableCell>
+                        <TableCell className="font-display font-medium text-sm">
+                          {merged.customerName}
+                        </TableCell>
+                        <TableCell className="font-display text-sm">
+                          {merged.phone}
+                        </TableCell>
+                        <TableCell className="font-display text-sm max-w-32 truncate">
+                          {order.productId.slice(0, 15)}...
+                        </TableCell>
+                        <TableCell className="font-display text-sm">
+                          {Number(merged.quantity)}
+                        </TableCell>
+                        <TableCell className="font-display text-sm max-w-32 truncate text-muted-foreground">
+                          {merged.address}
+                        </TableCell>
+                        <TableCell className="font-display text-xs max-w-24 truncate text-muted-foreground">
+                          {courier ? (
+                            <span>
+                              {courier.courierName}
+                              {courier.courierTrackingNumber
+                                ? ` (${courier.courierTrackingNumber.slice(0, 8)}…)`
+                                : ""}
+                            </span>
+                          ) : (
+                            "—"
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <Select
+                            defaultValue={order.status}
+                            onValueChange={(v) =>
+                              handleStatusUpdate(order.id, v)
+                            }
                           >
-                            <TableCell className="font-display text-xs text-muted-foreground max-w-24 truncate">
-                              {order.id.slice(0, 12)}...
-                            </TableCell>
-                            <TableCell className="font-display font-medium text-sm">
-                              {merged.customerName}
-                            </TableCell>
-                            <TableCell className="font-display text-sm">
-                              {merged.phone}
-                            </TableCell>
-                            <TableCell className="font-display text-sm max-w-32 truncate">
-                              {order.productId.slice(0, 15)}...
-                            </TableCell>
-                            <TableCell className="font-display text-sm">
-                              {Number(merged.quantity)}
-                            </TableCell>
-                            <TableCell className="font-display text-sm max-w-32 truncate text-muted-foreground">
-                              {merged.address}
-                            </TableCell>
-                            <TableCell className="font-display text-xs max-w-24 truncate text-muted-foreground">
-                              {courier ? (
-                                <span>
-                                  {courier.courierName}
-                                  {courier.courierTrackingNumber
-                                    ? ` (${courier.courierTrackingNumber.slice(0, 8)}…)`
-                                    : ""}
-                                </span>
-                              ) : (
-                                "—"
+                            <SelectTrigger
+                              className="h-8 text-xs font-display w-36"
+                              data-ocid={`admin.orders.select.${idx + 1}`}
+                            >
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent
+                              data-ocid={`admin.orders.dropdown_menu.${idx + 1}`}
+                            >
+                              {[
+                                { value: "pending", label: "Pending" },
+                                { value: "confirmed", label: "Confirmed" },
+                                { value: "shipped", label: "Shipped" },
+                                {
+                                  value: "out_for_delivery",
+                                  label: "Out for Delivery",
+                                },
+                                { value: "delivered", label: "Delivered" },
+                                { value: "cancelled", label: "Cancelled" },
+                              ].map((s) => (
+                                <SelectItem
+                                  key={s.value}
+                                  value={s.value}
+                                  className="font-display text-xs"
+                                >
+                                  {s.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </TableCell>
+                        <TableCell className="font-display text-xs text-muted-foreground whitespace-nowrap">
+                          {formatDate(order.timestamp)}
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 w-8 p-0"
+                            onClick={() => openOrderEditDialog(order)}
+                            data-ocid={`admin.orders.edit_button.${idx + 1}`}
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  };
+
+                  return (
+                    <div className="space-y-0">
+                      {/* Active orders table */}
+                      {activeOrders.length === 0 ? (
+                        <div className="p-10 text-center text-muted-foreground font-display">
+                          No active orders
+                        </div>
+                      ) : (
+                        <div className="overflow-x-auto">
+                          <Table>
+                            <TableHeader>{orderTableHeaders}</TableHeader>
+                            <TableBody>
+                              {activeOrders.map((order, idx) =>
+                                renderOrderRow(order, idx, false),
                               )}
-                            </TableCell>
-                            <TableCell>
-                              <Select
-                                defaultValue={order.status}
-                                onValueChange={(v) =>
-                                  handleStatusUpdate(order.id, v)
-                                }
-                              >
-                                <SelectTrigger
-                                  className="h-8 text-xs font-display w-36"
-                                  data-ocid={`admin.orders.select.${idx + 1}`}
-                                >
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent
-                                  data-ocid={`admin.orders.dropdown_menu.${idx + 1}`}
-                                >
-                                  {[
-                                    { value: "pending", label: "Pending" },
-                                    { value: "confirmed", label: "Confirmed" },
-                                    { value: "shipped", label: "Shipped" },
-                                    {
-                                      value: "out_for_delivery",
-                                      label: "Out for Delivery",
-                                    },
-                                    { value: "delivered", label: "Delivered" },
-                                    { value: "cancelled", label: "Cancelled" },
-                                  ].map((s) => (
-                                    <SelectItem
-                                      key={s.value}
-                                      value={s.value}
-                                      className="font-display text-xs"
-                                    >
-                                      {s.label}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </TableCell>
-                            <TableCell className="font-display text-xs text-muted-foreground whitespace-nowrap">
-                              {formatDate(order.timestamp)}
-                            </TableCell>
-                            <TableCell>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-8 w-8 p-0"
-                                onClick={() => openOrderEditDialog(order)}
-                                data-ocid={`admin.orders.edit_button.${idx + 1}`}
-                              >
-                                <Pencil className="h-3.5 w-3.5" />
-                              </Button>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                </div>
+                            </TableBody>
+                          </Table>
+                        </div>
+                      )}
+
+                      {/* Completed orders collapsible */}
+                      {completedOrders.length > 0 && (
+                        <div className="border-t border-border">
+                          <button
+                            type="button"
+                            className="w-full flex items-center justify-between px-5 py-3 bg-green-50/60 hover:bg-green-50/80 transition-colors text-left"
+                            onClick={() => setCompletedExpanded((p) => !p)}
+                            data-ocid="admin.orders.toggle"
+                          >
+                            <div className="flex items-center gap-2">
+                              <CheckCircle2 className="h-4 w-4 text-green-600" />
+                              <span className="font-display font-semibold text-sm text-green-800">
+                                Completed Orders ({completedOrders.length})
+                              </span>
+                            </div>
+                            {completedExpanded ? (
+                              <ChevronUp className="h-4 w-4 text-green-600" />
+                            ) : (
+                              <ChevronDown className="h-4 w-4 text-green-600" />
+                            )}
+                          </button>
+                          {completedExpanded && (
+                            <div className="overflow-x-auto">
+                              <Table>
+                                <TableHeader>{orderTableHeaders}</TableHeader>
+                                <TableBody>
+                                  {completedOrders.map((order, idx) =>
+                                    renderOrderRow(order, idx, true),
+                                  )}
+                                </TableBody>
+                              </Table>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()
               )}
             </div>
           </TabsContent>
@@ -1517,6 +1729,314 @@ export default function AdminDashboardPage() {
             </div>
           </TabsContent>
 
+          {/* Profit Tracker Tab */}
+          <TabsContent value="profit">
+            <div className="space-y-6">
+              {/* Summary Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {[
+                  {
+                    label: "Total Revenue",
+                    value: `₹${totalRevenueNum.toLocaleString("en-IN")}`,
+                    color: "text-green-600",
+                    bg: "bg-green-50",
+                    ocid: "admin.profit.revenue.card",
+                  },
+                  {
+                    label: "Est. Total Cost",
+                    value: `₹${totalCostEstimate.toLocaleString("en-IN")}`,
+                    color: "text-orange-600",
+                    bg: "bg-orange-50",
+                    ocid: "admin.profit.cost.card",
+                  },
+                  {
+                    label: "Est. Profit",
+                    value: `₹${totalProfitEstimate.toLocaleString("en-IN")}`,
+                    color:
+                      totalProfitEstimate >= 0
+                        ? "text-blue-600"
+                        : "text-red-600",
+                    bg: totalProfitEstimate >= 0 ? "bg-blue-50" : "bg-red-50",
+                    ocid: "admin.profit.profit.card",
+                  },
+                  {
+                    label: "Profit Margin",
+                    value: `${profitMarginPct}%`,
+                    color: "text-purple-600",
+                    bg: "bg-purple-50",
+                    ocid: "admin.profit.margin.card",
+                  },
+                ].map((stat) => (
+                  <div
+                    key={stat.label}
+                    data-ocid={stat.ocid}
+                    className="bg-card rounded-xl border border-border p-5 shadow-card"
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm text-muted-foreground font-display">
+                        {stat.label}
+                      </span>
+                      <div className={`p-1.5 rounded-lg ${stat.bg}`}>
+                        <TrendingUp className={`h-4 w-4 ${stat.color}`} />
+                      </div>
+                    </div>
+                    <div
+                      className={`font-heading font-bold text-2xl ${stat.color}`}
+                    >
+                      {stat.value}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Monthly Profit Chart */}
+              <div className="bg-card rounded-xl border border-border shadow-card p-6">
+                <h3 className="font-heading font-bold text-lg text-foreground mb-6">
+                  Monthly Revenue vs Cost
+                </h3>
+                {profitChartData.length === 0 ? (
+                  <div className="h-56 flex items-center justify-center text-muted-foreground font-display">
+                    No sales data available yet
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height={240}>
+                    <BarChart
+                      data={profitChartData}
+                      margin={{ top: 5, right: 10, left: 10, bottom: 5 }}
+                    >
+                      <CartesianGrid
+                        strokeDasharray="3 3"
+                        stroke="oklch(0.88 0.02 240)"
+                      />
+                      <XAxis
+                        dataKey="name"
+                        tick={{ fontFamily: "Satoshi", fontSize: 12 }}
+                      />
+                      <YAxis tick={{ fontFamily: "Satoshi", fontSize: 12 }} />
+                      <RechartTooltip
+                        contentStyle={{
+                          borderRadius: "8px",
+                          border: "1px solid oklch(0.88 0.02 240)",
+                          fontFamily: "Satoshi",
+                        }}
+                        formatter={(value: number, name: string) => [
+                          `₹${value.toLocaleString("en-IN")}`,
+                          name === "revenue"
+                            ? "Revenue"
+                            : name === "cost"
+                              ? "Est. Cost"
+                              : "Est. Profit",
+                        ]}
+                      />
+                      <Bar
+                        dataKey="revenue"
+                        fill="oklch(0.52 0.19 252)"
+                        radius={[4, 4, 0, 0]}
+                        name="revenue"
+                      />
+                      <Bar
+                        dataKey="cost"
+                        fill="oklch(0.68 0.18 40)"
+                        radius={[4, 4, 0, 0]}
+                        name="cost"
+                      />
+                      <Bar
+                        dataKey="profit"
+                        fill="oklch(0.55 0.18 155)"
+                        radius={[4, 4, 0, 0]}
+                        name="profit"
+                      />
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
+                <div className="flex items-center gap-6 mt-3 justify-center">
+                  {[
+                    { color: "bg-[oklch(0.52_0.19_252)]", label: "Revenue" },
+                    { color: "bg-[oklch(0.68_0.18_40)]", label: "Est. Cost" },
+                    {
+                      color: "bg-[oklch(0.55_0.18_155)]",
+                      label: "Est. Profit",
+                    },
+                  ].map((l) => (
+                    <div key={l.label} className="flex items-center gap-1.5">
+                      <div className={`w-3 h-3 rounded-sm ${l.color}`} />
+                      <span className="text-xs font-display text-muted-foreground">
+                        {l.label}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Products Profit Table */}
+              <div className="bg-card rounded-xl border border-border shadow-card overflow-hidden">
+                <div className="p-5 border-b border-border">
+                  <h3 className="font-heading font-semibold text-lg text-foreground">
+                    Product Profit Data
+                  </h3>
+                  <p className="text-sm text-muted-foreground font-display mt-1">
+                    Enter cost price, sell price, and labour charges for each
+                    product to track profits.
+                  </p>
+                </div>
+                {!products || products.length === 0 ? (
+                  <div
+                    className="p-10 text-center"
+                    data-ocid="admin.profit.empty_state"
+                  >
+                    <Package className="h-10 w-10 mx-auto text-muted-foreground opacity-30 mb-3" />
+                    <p className="font-display text-muted-foreground">
+                      No products yet. Add products first.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-secondary/50">
+                          <TableHead className="font-display text-xs uppercase tracking-wider">
+                            Product
+                          </TableHead>
+                          <TableHead className="font-display text-xs uppercase tracking-wider">
+                            Sell Price
+                          </TableHead>
+                          <TableHead className="font-display text-xs uppercase tracking-wider">
+                            Cost Price (₹)
+                          </TableHead>
+                          <TableHead className="font-display text-xs uppercase tracking-wider">
+                            Labour (₹)
+                          </TableHead>
+                          <TableHead className="font-display text-xs uppercase tracking-wider">
+                            Profit/Unit
+                          </TableHead>
+                          <TableHead className="font-display text-xs uppercase tracking-wider">
+                            Units Sold
+                          </TableHead>
+                          <TableHead className="font-display text-xs uppercase tracking-wider">
+                            Save
+                          </TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {(products ?? []).map((p, idx) => {
+                          const entry = getProfitEntry(
+                            p.id,
+                            p.name,
+                            Number(p.price),
+                          );
+                          const profitPerUnit =
+                            entry.sellPrice -
+                            entry.costPrice -
+                            entry.labourCharges;
+                          const soldQty = (orders ?? [])
+                            .filter(
+                              (o) =>
+                                o.productId === p.id &&
+                                o.status !== "cancelled",
+                            )
+                            .reduce((s, o) => s + Number(o.quantity), 0);
+                          const hasEdits = !!profitEdits[p.id];
+
+                          return (
+                            <TableRow
+                              key={p.id}
+                              data-ocid={`admin.profit.item.${idx + 1}`}
+                              className="hover:bg-secondary/30 transition-colors"
+                            >
+                              <TableCell className="font-display font-medium text-sm max-w-40">
+                                <div className="flex items-center gap-2">
+                                  {p.imageUrl && (
+                                    <img
+                                      src={p.imageUrl}
+                                      alt={p.name}
+                                      className="h-8 w-8 rounded-md object-cover shrink-0"
+                                    />
+                                  )}
+                                  <span className="line-clamp-2 leading-snug">
+                                    {p.name}
+                                  </span>
+                                </div>
+                              </TableCell>
+                              <TableCell className="font-display font-semibold text-sm text-ocean-blue">
+                                {formatPrice(p.price)}
+                              </TableCell>
+                              <TableCell>
+                                <Input
+                                  type="number"
+                                  min={0}
+                                  value={entry.costPrice}
+                                  onChange={(e) =>
+                                    handleProfitEdit(
+                                      p.id,
+                                      "costPrice",
+                                      e.target.value,
+                                    )
+                                  }
+                                  className="font-display h-9 w-28 text-sm"
+                                  placeholder="0"
+                                  data-ocid={`admin.profit.cost.input.${idx + 1}`}
+                                />
+                              </TableCell>
+                              <TableCell>
+                                <Input
+                                  type="number"
+                                  min={0}
+                                  value={entry.labourCharges}
+                                  onChange={(e) =>
+                                    handleProfitEdit(
+                                      p.id,
+                                      "labourCharges",
+                                      e.target.value,
+                                    )
+                                  }
+                                  className="font-display h-9 w-24 text-sm"
+                                  placeholder="0"
+                                  data-ocid={`admin.profit.labour.input.${idx + 1}`}
+                                />
+                              </TableCell>
+                              <TableCell>
+                                <span
+                                  className={`font-heading font-bold text-sm ${
+                                    profitPerUnit >= 0
+                                      ? "text-green-600"
+                                      : "text-red-600"
+                                  }`}
+                                >
+                                  {profitPerUnit >= 0 ? "+" : ""}₹
+                                  {profitPerUnit.toLocaleString("en-IN")}
+                                </span>
+                              </TableCell>
+                              <TableCell className="font-display text-sm text-center">
+                                <Badge
+                                  variant="secondary"
+                                  className="font-display text-xs"
+                                >
+                                  {soldQty}
+                                </Badge>
+                              </TableCell>
+                              <TableCell>
+                                <Button
+                                  size="sm"
+                                  variant={hasEdits ? "default" : "outline"}
+                                  className={`h-8 font-display text-xs px-3 ${hasEdits ? "btn-ocean" : ""}`}
+                                  onClick={() => handleProfitSave(entry)}
+                                  data-ocid={`admin.profit.save_button.${idx + 1}`}
+                                >
+                                  <Save className="h-3 w-3 mr-1" />
+                                  Save
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </div>
+            </div>
+          </TabsContent>
+
           {/* Complaints Tab */}
           <TabsContent value="complaints">
             <div className="bg-card rounded-xl border border-border shadow-card overflow-hidden">
@@ -1860,19 +2380,83 @@ export default function AdminDashboardPage() {
                 data-ocid="admin.products.input"
               />
             </div>
-            <div>
+            <div className="sm:col-span-2">
               <Label className="font-display text-sm font-medium mb-1.5 block">
-                Image URL
+                Product Image
               </Label>
-              <Input
-                value={productForm.imageUrl}
-                onChange={(e) =>
-                  setProductForm((p) => ({ ...p, imageUrl: e.target.value }))
-                }
-                placeholder="https://..."
-                className="font-display h-11"
-                data-ocid="admin.products.input"
+              {/* Hidden file input */}
+              <input
+                ref={productImageFileRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleProductImageUpload}
               />
+              <div className="space-y-3">
+                {/* Upload button + thumbnail preview */}
+                <div className="flex items-center gap-3">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => productImageFileRef.current?.click()}
+                    className="font-display gap-2"
+                    data-ocid="admin.products.upload_button"
+                  >
+                    <Upload className="h-4 w-4" />
+                    Upload Photo
+                  </Button>
+                  {productForm.imageUrl && (
+                    <div className="relative inline-block">
+                      <img
+                        src={productForm.imageUrl}
+                        alt="Product preview"
+                        className="h-20 w-20 rounded-lg object-cover border border-border shadow-sm"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="absolute -top-2 -right-2 h-6 w-6 p-0 rounded-full bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        onClick={() =>
+                          setProductForm((p) => ({ ...p, imageUrl: "" }))
+                        }
+                        data-ocid="admin.products.delete_button"
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  )}
+                </div>
+                {/* Fallback URL input */}
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 h-px bg-border" />
+                  <span className="text-xs text-muted-foreground font-display">
+                    or
+                  </span>
+                  <div className="flex-1 h-px bg-border" />
+                </div>
+                <div>
+                  <Label className="font-display text-xs text-muted-foreground mb-1 block">
+                    Paste image URL
+                  </Label>
+                  <Input
+                    value={
+                      productForm.imageUrl.startsWith("data:")
+                        ? ""
+                        : productForm.imageUrl
+                    }
+                    onChange={(e) =>
+                      setProductForm((p) => ({
+                        ...p,
+                        imageUrl: e.target.value,
+                      }))
+                    }
+                    placeholder="https://example.com/image.jpg"
+                    className="font-display h-9 text-sm"
+                    data-ocid="admin.products.input"
+                  />
+                </div>
+              </div>
             </div>
             <div className="sm:col-span-2">
               <Label className="font-display text-sm font-medium mb-1.5 block">

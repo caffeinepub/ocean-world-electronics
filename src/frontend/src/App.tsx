@@ -11,9 +11,11 @@ import {
 import Footer from "./components/Footer";
 import Navbar from "./components/Navbar";
 import SeedData from "./components/SeedData";
+import { CartProvider } from "./context/CartContext";
 import AboutPage from "./pages/AboutPage";
 import AdminDashboardPage from "./pages/AdminDashboardPage";
 import AdminLoginPage from "./pages/AdminLoginPage";
+import CartPage from "./pages/CartPage";
 import ContactPage from "./pages/ContactPage";
 import HomePage from "./pages/HomePage";
 import MyOrdersPage from "./pages/MyOrdersPage";
@@ -27,15 +29,17 @@ export { Link, useNavigate };
 // Root layout with Navbar/Footer
 const rootRoute = createRootRoute({
   component: () => (
-    <div className="min-h-screen flex flex-col bg-background">
-      <SeedData />
-      <Navbar />
-      <main className="flex-1">
-        <Outlet />
-      </main>
-      <Footer />
-      <Toaster richColors position="top-right" />
-    </div>
+    <CartProvider>
+      <div className="min-h-screen flex flex-col bg-background">
+        <SeedData />
+        <Navbar />
+        <main className="flex-1">
+          <Outlet />
+        </main>
+        <Footer />
+        <Toaster richColors position="top-right" />
+      </div>
+    </CartProvider>
   ),
 });
 
@@ -103,6 +107,12 @@ const adminDashboardRoute = createRoute({
   component: AdminDashboardPage,
 });
 
+const cartRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/cart",
+  component: CartPage,
+});
+
 const routeTree = rootRoute.addChildren([
   homeRoute,
   productsRoute,
@@ -113,6 +123,7 @@ const routeTree = rootRoute.addChildren([
   trackOrderRoute,
   adminLoginRoute,
   adminDashboardRoute,
+  cartRoute,
 ]);
 
 const router = createRouter({ routeTree });

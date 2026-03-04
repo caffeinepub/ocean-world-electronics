@@ -1,4 +1,5 @@
 import type { Order } from "../backend.d";
+import { OrderStatus } from "../backend.d";
 
 export interface StoreSettings {
   phone: string;
@@ -135,4 +136,188 @@ export function saveCourierInfo(orderId: string, info: CourierInfo): void {
   const existing = getCourierInfos();
   existing[orderId] = info;
   localStorage.setItem(COURIER_INFOS_KEY, JSON.stringify(existing));
+}
+
+// ── Products (Admin localStorage) ────────────────────────────────
+import type { Product } from "../backend.d";
+
+const PRODUCTS_KEY = "ow_products";
+
+export function getLocalProducts(): Product[] {
+  try {
+    const raw = localStorage.getItem(PRODUCTS_KEY);
+    if (!raw) return [];
+    // Parse and convert price/stockQuantity back to bigint
+    const arr = JSON.parse(raw) as Array<Record<string, unknown>>;
+    return arr.map((p) => ({
+      ...p,
+      price: BigInt(p.price as string),
+      stockQuantity: BigInt(p.stockQuantity as string),
+    })) as Product[];
+  } catch {
+    return [];
+  }
+}
+
+export function saveLocalProducts(products: Product[]): void {
+  // Serialize bigint as string
+  const serializable = products.map((p) => ({
+    ...p,
+    price: p.price.toString(),
+    stockQuantity: p.stockQuantity.toString(),
+  }));
+  localStorage.setItem(PRODUCTS_KEY, JSON.stringify(serializable));
+}
+
+export function addLocalProduct(product: Product): void {
+  const existing = getLocalProducts();
+  existing.push(product);
+  saveLocalProducts(existing);
+}
+
+export function updateLocalProduct(productId: string, updated: Product): void {
+  const existing = getLocalProducts();
+  const idx = existing.findIndex((p) => p.id === productId);
+  if (idx !== -1) {
+    existing[idx] = updated;
+  } else {
+    existing.push(updated);
+  }
+  saveLocalProducts(existing);
+}
+
+export function deleteLocalProduct(productId: string): void {
+  const existing = getLocalProducts().filter((p) => p.id !== productId);
+  saveLocalProducts(existing);
+}
+
+// ── Local Orders (fallback when backend unavailable) ──────────────
+const LOCAL_ORDERS_KEY = "ow_local_orders";
+
+export interface LocalOrder {
+  id: string;
+  customerName: string;
+  phone: string;
+  address: string;
+  quantity: string; // stored as string (was bigint)
+  productId: string;
+  productName: string;
+  productPrice: string; // stored as string (was bigint)
+  specialDescription: string;
+  status: string;
+  createdAt: string; // ISO timestamp as string
+  courierName: string;
+  courierTrackingNumber: string;
+}
+
+export function getLocalOrders(): LocalOrder[] {
+  try {
+    const raw = localStorage.getItem(LOCAL_ORDERS_KEY);
+    if (!raw) return [];
+    return JSON.parse(raw) as LocalOrder[];
+  } catch {
+    return [];
+  }
+}
+
+export function saveLocalOrder(order: LocalOrder): void {
+  const existing = getLocalOrders();
+  existing.unshift(order); // newest first
+  localStorage.setItem(LOCAL_ORDERS_KEY, JSON.stringify(existing));
+}
+
+export function updateLocalOrderStatus(orderId: string, status: string): void {
+  const existing = getLocalOrders();
+  const idx = existing.findIndex((o) => o.id === orderId);
+  if (idx !== -1) {
+    existing[idx].status = status;
+    localStorage.setItem(LOCAL_ORDERS_KEY, JSON.stringify(existing));
+  }
+}
+
+export function updateLocalOrderCourier(
+  orderId: string,
+  courierName: string,
+  courierTrackingNumber: string,
+): void {
+  const existing = getLocalOrders();
+  const idx = existing.findIndex((o) => o.id === orderId);
+  if (idx !== -1) {
+    existing[idx].courierName = courierName;
+    existing[idx].courierTrackingNumber = courierTrackingNumber;
+    localStorage.setItem(LOCAL_ORDERS_KEY, JSON.stringify(existing));
+  }
+}
+
+export function updateLocalOrderDetails(
+  orderId: string,
+  details: Partial<LocalOrder>,
+): void {
+  const existing = getLocalOrders();
+  const idx = existing.findIndex((o) => o.id === orderId);
+  if (idx !== -1) {
+    existing[idx] = { ...existing[idx], ...details };
+    localStorage.setItem(LOCAL_ORDERS_KEY, JSON.stringify(existing));
+  }
+}
+
+// Convert LocalOrder to Order (backend type shape) for UI compatibility
+export function localOrderToOrder(o: LocalOrder): Order {
+  // Map the string status key to the OrderStatus enum value
+  const statusMap: Record<string, OrderStatus> = {
+    Pending: OrderStatus.pending,
+    pending: OrderStatus.pending,
+    Confirmed: OrderStatus.confirmed,
+    confirmed: OrderStatus.confirmed,
+    Shipped: OrderStatus.shipped,
+    shipped: OrderStatus.shipped,
+    Out_for_delivery: OrderStatus.out_for_delivery,
+    out_for_delivery: OrderStatus.out_for_delivery,
+    Delivered: OrderStatus.delivered,
+    delivered: OrderStatus.delivered,
+    Cancelled: OrderStatus.cancelled,
+    cancelled: OrderStatus.cancelled,
+  };
+  const resolvedStatus = statusMap[o.status] ?? OrderStatus.pending;
+
+  return {
+    id: o.id,
+    customerName: o.customerName,
+    phone: o.phone,
+    address: o.address,
+    quantity: BigInt(o.quantity),
+    productId: o.productId,
+    specialDescription: o.specialDescription,
+    status: resolvedStatus,
+    timestamp: BigInt(o.createdAt),
+    courierName: o.courierName || undefined,
+    courierTrackingNumber: o.courierTrackingNumber || undefined,
+  };
+}
+
+// ── Profit Tracker ────────────────────────────────────────────────
+export interface ProductProfitEntry {
+  productId: string;
+  productName: string;
+  costPrice: number;
+  sellPrice: number;
+  labourCharges: number;
+}
+
+const PROFIT_DATA_KEY = "ow_profit_data";
+
+export function getProfitData(): Record<string, ProductProfitEntry> {
+  try {
+    const raw = localStorage.getItem(PROFIT_DATA_KEY);
+    if (!raw) return {};
+    return JSON.parse(raw) as Record<string, ProductProfitEntry>;
+  } catch {
+    return {};
+  }
+}
+
+export function saveProfitEntry(entry: ProductProfitEntry): void {
+  const existing = getProfitData();
+  existing[entry.productId] = entry;
+  localStorage.setItem(PROFIT_DATA_KEY, JSON.stringify(existing));
 }

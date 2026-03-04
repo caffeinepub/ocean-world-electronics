@@ -1,16 +1,9 @@
 import { Button } from "@/components/ui/button";
 import { Link, useRouter } from "@tanstack/react-router";
-import {
-  Info,
-  MapPin,
-  Menu,
-  Package,
-  Phone,
-  ShoppingCart,
-  X,
-} from "lucide-react";
+import { MapPin, Menu, Package, Phone, ShoppingCart, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
+import { useCart } from "../context/CartContext";
 
 const simpleNavLinks = [
   { to: "/" as const, label: "Home" },
@@ -23,6 +16,8 @@ export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
   const router = useRouter();
   const currentPath = router.state.location.pathname;
+  const { totalItems } = useCart();
+  const cartActive = currentPath.startsWith("/cart");
 
   const isActive = (to: string) =>
     to === "/" ? currentPath === "/" : currentPath.startsWith(to);
@@ -102,16 +97,42 @@ export default function Navbar() {
               <Phone className="h-4 w-4" />
               +91 98765 43210
             </a>
+            {/* Cart Icon with badge */}
+            <Link
+              to="/cart"
+              data-ocid="nav.cart.link"
+              className="relative flex items-center justify-center h-9 w-9 rounded-full border border-border hover:bg-secondary transition-colors"
+              aria-label="Shopping cart"
+            >
+              <ShoppingCart className="h-4 w-4 text-foreground" />
+              {totalItems > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 h-4.5 min-w-[1.1rem] px-1 rounded-full bg-ocean-blue text-white text-[10px] font-heading font-bold flex items-center justify-center leading-none">
+                  {totalItems > 99 ? "99+" : totalItems}
+                </span>
+              )}
+            </Link>
             <Link to="/products" data-ocid="nav.secondary_button">
               <Button className="btn-ocean rounded-full h-9 px-5 text-sm">
-                <ShoppingCart className="h-4 w-4 mr-2" />
                 Shop Now
               </Button>
             </Link>
           </div>
 
-          {/* Mobile: track order pill + hamburger */}
+          {/* Mobile: cart + track order pill + hamburger */}
           <div className="lg:hidden flex items-center gap-2">
+            <Link
+              to="/cart"
+              data-ocid="nav.mobile.cart.link"
+              className="relative flex items-center justify-center h-8 w-8 rounded-full border border-border hover:bg-secondary transition-colors"
+              aria-label="Shopping cart"
+            >
+              <ShoppingCart className="h-4 w-4 text-foreground" />
+              {totalItems > 0 && (
+                <span className="absolute -top-1 -right-1 h-4 min-w-[1rem] px-0.5 rounded-full bg-ocean-blue text-white text-[9px] font-heading font-bold flex items-center justify-center leading-none">
+                  {totalItems > 99 ? "99+" : totalItems}
+                </span>
+              )}
+            </Link>
             <Link
               to="/track-order"
               search={{ phone: undefined }}
@@ -189,6 +210,24 @@ export default function Navbar() {
               >
                 <Package className="h-4 w-4" />
                 My Orders
+              </Link>
+              <Link
+                to="/cart"
+                data-ocid="nav.mobile.link.7"
+                onClick={() => setMenuOpen(false)}
+                className={`flex items-center gap-2 px-4 py-3 rounded-md text-sm font-medium font-display transition-colors ${
+                  cartActive
+                    ? "bg-ocean-light text-ocean-blue font-semibold"
+                    : "text-foreground hover:bg-secondary"
+                }`}
+              >
+                <ShoppingCart className="h-4 w-4" />
+                Cart
+                {totalItems > 0 && (
+                  <span className="ml-auto h-5 min-w-[1.25rem] px-1 rounded-full bg-ocean-blue text-white text-[10px] font-heading font-bold flex items-center justify-center">
+                    {totalItems}
+                  </span>
+                )}
               </Link>
 
               <div className="pt-2 border-t border-border mt-1">

@@ -20,8 +20,9 @@ import {
 import { motion } from "motion/react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { useCart } from "../context/CartContext";
 import { useGetProduct, usePlaceOrder } from "../hooks/useQueries";
-import { getStoreSettings } from "../utils/storeSettings";
+import { getLocalProducts, getStoreSettings } from "../utils/storeSettings";
 
 function formatPrice(price: bigint): string {
   return `₹${Number(price).toLocaleString("en-IN")}`;
@@ -52,9 +53,17 @@ interface SubmittedOrder {
 
 export default function ProductDetailPage() {
   const { id } = useParams({ from: "/products/$id" });
-  const { data: product, isLoading, isError } = useGetProduct(id ?? "");
+  const { data: backendProduct, isLoading, isError } = useGetProduct(id ?? "");
+  const { addToCart } = useCart();
   const placeOrder = usePlaceOrder();
   const settings = getStoreSettings();
+
+  // Fallback: if backend fails or product not found, try localStorage
+  const localProduct =
+    !isLoading && (isError || !backendProduct)
+      ? getLocalProducts().find((p) => p.id === id)
+      : undefined;
+  const product = backendProduct ?? localProduct;
 
   const [form, setForm] = useState<OrderForm>(emptyForm);
   const [orderSuccess, setOrderSuccess] = useState(false);
@@ -136,7 +145,8 @@ export default function ProductDetailPage() {
     );
   }
 
-  if (isError || !product) {
+  // Only show "not found" if loading is done AND product is not in backend OR localStorage
+  if (!product) {
     return (
       <div
         className="container mx-auto px-4 py-20 text-center"
@@ -439,6 +449,22 @@ export default function ProductDetailPage() {
                       Confirm Order
                     </>
                   )}
+                </Button>
+
+                {/* Add to Cart Button */}
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full h-12 rounded-lg font-display text-base border-ocean-blue text-ocean-blue hover:bg-ocean-light"
+                  disabled={!product.isAvailable}
+                  onClick={() => {
+                    addToCart(product);
+                    toast.success(`${product.name} added to cart!`);
+                  }}
+                  data-ocid="product.secondary_button"
+                >
+                  <ShoppingCart className="h-4 w-4 mr-2" />
+                  Add to Cart
                 </Button>
 
                 {/* WhatsApp Order Button */}

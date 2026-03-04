@@ -3,7 +3,10 @@ import { Button } from "@/components/ui/button";
 import { Link } from "@tanstack/react-router";
 import { Package, ShoppingCart } from "lucide-react";
 import { motion } from "motion/react";
+import { useState } from "react";
+import { toast } from "sonner";
 import type { Product } from "../backend.d";
+import { useCart } from "../context/CartContext";
 
 interface ProductCardProps {
   product: Product;
@@ -28,6 +31,18 @@ const categoryColors: Record<string, string> = {
 export default function ProductCard({ product, index }: ProductCardProps) {
   const badgeClass =
     categoryColors[product.category] ?? "bg-slate-100 text-slate-700";
+  const { addToCart } = useCart();
+  const [justAdded, setJustAdded] = useState(false);
+
+  function handleAddToCart(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!product.isAvailable) return;
+    addToCart(product);
+    toast.success(`${product.name} added to cart!`);
+    setJustAdded(true);
+    setTimeout(() => setJustAdded(false), 1500);
+  }
 
   return (
     <motion.div
@@ -91,20 +106,33 @@ export default function ProductCard({ product, index }: ProductCardProps) {
           </span>
         </div>
 
-        <Link
-          to="/products/$id"
-          params={{ id: product.id }}
-          data-ocid={`products.primary_button.${index + 1}`}
-          className="mt-3 block"
-        >
-          <Button
-            className="w-full btn-ocean rounded-lg h-10 text-sm font-display"
-            disabled={!product.isAvailable}
+        <div className="mt-3 flex flex-col gap-2">
+          <Link
+            to="/products/$id"
+            params={{ id: product.id }}
+            data-ocid={`products.primary_button.${index + 1}`}
+            className="block"
           >
-            <ShoppingCart className="h-4 w-4 mr-2" />
-            {product.isAvailable ? "Order Now" : "Unavailable"}
-          </Button>
-        </Link>
+            <Button
+              className="w-full btn-ocean rounded-lg h-10 text-sm font-display"
+              disabled={!product.isAvailable}
+            >
+              <ShoppingCart className="h-4 w-4 mr-2" />
+              {product.isAvailable ? "Order Now" : "Unavailable"}
+            </Button>
+          </Link>
+          {product.isAvailable && (
+            <Button
+              variant="outline"
+              className="w-full rounded-lg h-9 text-sm font-display border-ocean-blue/40 text-ocean-blue hover:bg-ocean-light hover:border-ocean-blue"
+              onClick={handleAddToCart}
+              data-ocid={`products.secondary_button.${index + 1}`}
+            >
+              <ShoppingCart className="h-3.5 w-3.5 mr-1.5" />
+              {justAdded ? "Added!" : "Add to Cart"}
+            </Button>
+          )}
+        </div>
       </div>
     </motion.div>
   );
