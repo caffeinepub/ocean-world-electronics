@@ -93,6 +93,62 @@
     --sidebar-ring: 0.52 0.19 252;
   }
 
+  /* ── Dark Mode Tokens ─────────────────────────────────────── */
+  .dark {
+    color-scheme: dark;
+
+    /* Dark backgrounds */
+    --background: 0.11 0.018 260;
+    --foreground: 0.93 0.01 240;
+
+    --card: 0.14 0.022 265;
+    --card-foreground: 0.93 0.01 240;
+
+    --popover: 0.14 0.022 265;
+    --popover-foreground: 0.93 0.01 240;
+
+    --primary: 0.65 0.16 252;
+    --primary-foreground: 0.11 0.018 260;
+
+    --secondary: 0.19 0.03 265;
+    --secondary-foreground: 0.88 0.02 240;
+
+    --muted: 0.19 0.03 265;
+    --muted-foreground: 0.58 0.02 255;
+
+    --accent: 0.20 0.04 260;
+    --accent-foreground: 0.88 0.02 240;
+
+    --destructive: 0.55 0.22 27;
+    --destructive-foreground: 0.98 0 0;
+
+    /* Brand tokens stay recognizable but brighter */
+    --ocean-blue: 0.62 0.18 252;
+    --ocean-blue-fg: 0.98 0 0;
+    --ocean-cyan: 0.78 0.14 212;
+    --ocean-navy: 0.11 0.04 262;
+    --ocean-light: 0.19 0.03 250;
+
+    --border: 0.26 0.03 260;
+    --input: 0.26 0.03 260;
+    --ring: 0.62 0.18 252;
+
+    --chart-1: 0.62 0.18 252;
+    --chart-2: 0.70 0.14 210;
+    --chart-3: 0.74 0.12 175;
+    --chart-4: 0.78 0.13 80;
+    --chart-5: 0.68 0.16 30;
+
+    --sidebar: 0.12 0.03 265;
+    --sidebar-foreground: 0.88 0.01 240;
+    --sidebar-primary: 0.62 0.18 252;
+    --sidebar-primary-foreground: 0.98 0 0;
+    --sidebar-accent: 0.18 0.05 265;
+    --sidebar-accent-foreground: 0.88 0.01 240;
+    --sidebar-border: 0.22 0.04 265;
+    --sidebar-ring: 0.62 0.18 252;
+  }
+
   * {
     @apply border-border;
   }
@@ -176,4 +232,27 @@
   .border-ocean {
     border-color: oklch(var(--ocean-blue) / 0.3);
   }
+
+  /* Dark mode btn-ocean override */
+  .dark .btn-ocean {
+    background: oklch(0.55 0.20 252);
+  }
+  .dark .btn-ocean:hover {
+    background: oklch(0.50 0.22 252);
+  }
+
+  /* Dark mode ocean-gradient */
+  .dark .ocean-gradient {
+    background: linear-gradient(135deg,
+      oklch(0.12 0.05 262) 0%,
+      oklch(0.16 0.07 255) 40%,
+      oklch(0.20 0.10 245) 100%
+    );
+  }
+
+  /* Dark mode feature cards */
+  .dark .bg-blue-50 { background-color: oklch(0.20 0.05 255); }
+  .dark .bg-green-50 { background-color: oklch(0.18 0.05 160); }
+  .dark .bg-orange-50 { background-color: oklch(0.20 0.05 60); }
+  .dark .bg-purple-50 { background-color: oklch(0.20 0.05 300); }
 }

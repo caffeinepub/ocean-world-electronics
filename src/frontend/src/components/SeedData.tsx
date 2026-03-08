@@ -107,17 +107,22 @@ const SAMPLE_PRODUCTS = [
   },
 ];
 
+const SEED_DONE_KEY = "ow_seed_done";
+
 export default function SeedData() {
   const { data: products, isLoading } = useGetAllProducts();
   const qc = useQueryClient();
   const seeded = useRef(false);
 
   useEffect(() => {
-    // Only seed when admin is logged in
+    // Only seed when admin is logged in AND we haven't seeded before (ever)
     const isAdmin = localStorage.getItem("owAdmin") === "1";
-    if (!isAdmin || isLoading || seeded.current) return;
+    const alreadySeeded = localStorage.getItem(SEED_DONE_KEY) === "1";
+    if (!isAdmin || isLoading || seeded.current || alreadySeeded) return;
     if (products && products.length === 0) {
       seeded.current = true;
+      // Mark as seeded immediately so it won't run again even if products are later deleted
+      localStorage.setItem(SEED_DONE_KEY, "1");
       // Seed products sequentially using admin actor directly
       const seedAll = async () => {
         try {

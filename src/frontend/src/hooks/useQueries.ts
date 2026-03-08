@@ -7,10 +7,10 @@ import type {
   Product,
   ProductSales,
 } from "../backend.d";
-import { createActorWithConfig } from "../config";
 import {
   addLocalProduct,
   deleteLocalProduct,
+  getDeletedProductIds,
   getLocalOrders,
   getLocalProducts,
   localOrderToOrder,
@@ -21,20 +21,6 @@ import {
 } from "../utils/storeSettings";
 import { useActor } from "./useActor";
 
-// ── Admin Actor ─────────────────────────────────────────────────
-const ADMIN_TOKEN = "1995@Bhawna";
-
-async function getAdminActor() {
-  const actor = await createActorWithConfig();
-  try {
-    // _initializeAccessControlWithSecret is not in the public type but exists at runtime
-    await (actor as any)._initializeAccessControlWithSecret(ADMIN_TOKEN);
-  } catch {
-    // ignore — may already be initialized or caller already has admin role
-  }
-  return actor;
-}
-
 // ── Products ────────────────────────────────────────────────────
 export function useGetAllProducts() {
   const { actor } = useActor();
@@ -42,15 +28,22 @@ export function useGetAllProducts() {
     queryKey: ["products"],
     queryFn: async () => {
       const localProducts = getLocalProducts();
+      const deletedIds = getDeletedProductIds();
       try {
-        if (!actor) return localProducts;
+        if (!actor) return localProducts.filter((p) => !deletedIds.has(p.id));
         const backendProducts = await actor.getAllProducts();
-        // Merge: local products override backend by id, backend products fill the rest
+        // Merge: local products take priority; backend products fill the rest
+        // but never include any product that has been explicitly deleted
         const localIds = new Set(localProducts.map((p) => p.id));
-        const backendOnly = backendProducts.filter((p) => !localIds.has(p.id));
-        return [...localProducts, ...backendOnly];
+        const backendOnly = backendProducts.filter(
+          (p) => !localIds.has(p.id) && !deletedIds.has(p.id),
+        );
+        return [
+          ...localProducts.filter((p) => !deletedIds.has(p.id)),
+          ...backendOnly,
+        ];
       } catch {
-        return localProducts;
+        return localProducts.filter((p) => !deletedIds.has(p.id));
       }
     },
     enabled: true, // always run, even without actor
@@ -62,6 +55,9 @@ export function useGetProduct(productId: string) {
   return useQuery<Product>({
     queryKey: ["product", productId],
     queryFn: async () => {
+      // If this product was explicitly deleted, don't return it
+      const deletedIds = getDeletedProductIds();
+      if (deletedIds.has(productId)) throw new Error("Product not found");
       // Always check localStorage first (admin-added products)
       const localProduct = getLocalProducts().find((p) => p.id === productId);
       if (localProduct) return localProduct;
@@ -74,9 +70,22 @@ export function useGetProduct(productId: string) {
 }
 
 export function useCreateProduct() {
+  const { actor } = useActor();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (product: Product) => {
+      // Try backend first
+      if (actor) {
+        try {
+          await actor.createProduct(product);
+          // Also save locally for immediate availability
+          addLocalProduct(product);
+          return;
+        } catch {
+          // fall through to localStorage only
+        }
+      }
+      // localStorage fallback
       addLocalProduct(product);
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["products"] }),
@@ -84,12 +93,24 @@ export function useCreateProduct() {
 }
 
 export function useUpdateProduct() {
+  const { actor } = useActor();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({
       productId,
       product,
     }: { productId: string; product: Product }) => {
+      // Try backend first
+      if (actor) {
+        try {
+          await actor.updateProduct(productId, product);
+          // Also update locally
+          updateLocalProduct(productId, product);
+          return;
+        } catch {
+          // fall through to localStorage only
+        }
+      }
       updateLocalProduct(productId, product);
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["products"] }),
@@ -97,9 +118,21 @@ export function useUpdateProduct() {
 }
 
 export function useDeleteProduct() {
+  const { actor } = useActor();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (productId: string) => {
+      // Try backend first
+      if (actor) {
+        try {
+          await actor.deleteProduct(productId);
+          // Also delete locally
+          deleteLocalProduct(productId);
+          return;
+        } catch {
+          // fall through to localStorage only
+        }
+      }
       deleteLocalProduct(productId);
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["products"] }),
@@ -128,7 +161,7 @@ export function usePlaceOrder() {
       // Try backend first; fall back to localStorage
       if (actor) {
         try {
-          const result = await actor.placeOrder(
+          await actor.placeOrder(
             customerName,
             phone,
             address,
@@ -136,7 +169,27 @@ export function usePlaceOrder() {
             productId,
             specialDescription,
           );
-          return result;
+          // Also save locally so it shows up immediately
+          const localProduct = getLocalProducts().find(
+            (p) => p.id === productId,
+          );
+          const orderId = `order_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+          saveLocalOrder({
+            id: orderId,
+            customerName,
+            phone,
+            address,
+            quantity: quantity.toString(),
+            productId,
+            productName: localProduct?.name ?? productId,
+            productPrice: localProduct?.price?.toString() ?? "0",
+            specialDescription,
+            status: "Pending",
+            createdAt: Date.now().toString(),
+            courierName: "",
+            courierTrackingNumber: "",
+          });
+          return orderId;
         } catch {
           // fall through to localStorage
         }
@@ -166,12 +219,13 @@ export function usePlaceOrder() {
 }
 
 export function useGetAllOrders() {
+  const { actor, isFetching } = useActor();
   return useQuery<Order[]>({
     queryKey: ["allOrders"],
     queryFn: async () => {
       const localOrders = getLocalOrders().map(localOrderToOrder);
+      if (!actor) return localOrders;
       try {
-        const actor = await getAdminActor();
         const backendOrders = await actor.getAllOrders();
         // Merge: local orders + backend orders (avoid duplicates by id)
         const localIds = new Set(localOrders.map((o) => o.id));
@@ -181,28 +235,28 @@ export function useGetAllOrders() {
         return localOrders;
       }
     },
+    enabled: !isFetching, // run as soon as actor is ready (or immediately if null)
   });
 }
 
 export function useUpdateOrderStatus() {
+  const { actor } = useActor();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({
       orderId,
       newStatus,
     }: { orderId: string; newStatus: OrderStatus }) => {
-      // If local order, update locally
-      const localOrders = getLocalOrders();
-      const isLocal = localOrders.some((o) => o.id === orderId);
-      if (isLocal) {
-        updateLocalOrderStatus(orderId, newStatus as unknown as string);
-        return;
-      }
-      try {
-        const actor = await getAdminActor();
-        return actor.updateOrderStatus(orderId, newStatus);
-      } catch {
-        updateLocalOrderStatus(orderId, newStatus as unknown as string);
+      // Always update locally first for immediate UI feedback
+      updateLocalOrderStatus(orderId, newStatus as unknown as string);
+
+      // Also try backend
+      if (actor) {
+        try {
+          await actor.updateOrderStatus(orderId, newStatus);
+        } catch {
+          // local update already done, ignore backend error
+        }
       }
     },
     onSuccess: () => {
@@ -214,6 +268,7 @@ export function useUpdateOrderStatus() {
 }
 
 export function useUpdateOrderCourierInfo() {
+  const { actor } = useActor();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({
@@ -225,21 +280,20 @@ export function useUpdateOrderCourierInfo() {
       courierName: string;
       courierTrackingNumber: string;
     }) => {
-      const localOrders = getLocalOrders();
-      const isLocal = localOrders.some((o) => o.id === orderId);
-      if (isLocal) {
-        updateLocalOrderCourier(orderId, courierName, courierTrackingNumber);
-        return;
-      }
-      try {
-        const actor = await getAdminActor();
-        return actor.updateOrderCourierInfo(
-          orderId,
-          courierName,
-          courierTrackingNumber,
-        );
-      } catch {
-        updateLocalOrderCourier(orderId, courierName, courierTrackingNumber);
+      // Always update locally first
+      updateLocalOrderCourier(orderId, courierName, courierTrackingNumber);
+
+      // Also try backend
+      if (actor) {
+        try {
+          await actor.updateOrderCourierInfo(
+            orderId,
+            courierName,
+            courierTrackingNumber,
+          );
+        } catch {
+          // local update already done, ignore backend error
+        }
       }
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["allOrders"] }),
@@ -247,62 +301,115 @@ export function useUpdateOrderCourierInfo() {
 }
 
 export function useGetTotalOrdersCount() {
+  const { actor, isFetching } = useActor();
   return useQuery<bigint>({
     queryKey: ["totalOrders"],
     queryFn: async () => {
-      const actor = await getAdminActor();
-      return actor.getTotalOrdersCount();
+      if (!actor) {
+        // Fallback: count from localStorage
+        return BigInt(getLocalOrders().length);
+      }
+      try {
+        return await actor.getTotalOrdersCount();
+      } catch {
+        return BigInt(getLocalOrders().length);
+      }
     },
+    enabled: !isFetching,
   });
 }
 
 export function useGetTotalRevenue() {
+  const { actor, isFetching } = useActor();
   return useQuery<bigint>({
     queryKey: ["totalRevenue"],
     queryFn: async () => {
-      const actor = await getAdminActor();
-      return actor.getTotalRevenue();
+      if (!actor) return BigInt(0);
+      try {
+        return await actor.getTotalRevenue();
+      } catch {
+        return BigInt(0);
+      }
     },
+    enabled: !isFetching,
   });
 }
 
 export function useGetMonthlySalesSummary() {
+  const { actor, isFetching } = useActor();
   return useQuery<MonthlySales[]>({
     queryKey: ["monthlySales"],
     queryFn: async () => {
-      const actor = await getAdminActor();
-      return actor.getMonthlySalesSummary();
+      if (!actor) return [];
+      try {
+        return await actor.getMonthlySalesSummary();
+      } catch {
+        return [];
+      }
     },
+    enabled: !isFetching,
   });
 }
 
 export function useGetOrdersCountByStatus() {
+  const { actor, isFetching } = useActor();
   return useQuery<Array<[string, bigint]>>({
     queryKey: ["ordersByStatus"],
     queryFn: async () => {
-      const actor = await getAdminActor();
-      return actor.getOrdersCountByStatus();
+      if (!actor) {
+        // Fallback: compute from localStorage
+        const orders = getLocalOrders();
+        const counts: Record<string, number> = {};
+        for (const o of orders) {
+          const s = o.status.toLowerCase();
+          counts[s] = (counts[s] ?? 0) + 1;
+        }
+        return Object.entries(counts).map(
+          ([k, v]) => [k, BigInt(v)] as [string, bigint],
+        );
+      }
+      try {
+        return await actor.getOrdersCountByStatus();
+      } catch {
+        return [];
+      }
     },
+    enabled: !isFetching,
   });
 }
 
 export function useGetTopSellingProducts(limit: bigint) {
+  const { actor, isFetching } = useActor();
   return useQuery<ProductSales[]>({
     queryKey: ["topSellingProducts", limit.toString()],
     queryFn: async () => {
-      const actor = await getAdminActor();
-      return actor.getTopSellingProducts(limit);
+      if (!actor) return [];
+      try {
+        return await actor.getTopSellingProducts(limit);
+      } catch {
+        return [];
+      }
     },
+    enabled: !isFetching,
   });
 }
 
 export function useGetRecentOrders(limit: bigint) {
+  const { actor, isFetching } = useActor();
   return useQuery<Order[]>({
     queryKey: ["recentOrders", limit.toString()],
     queryFn: async () => {
-      const actor = await getAdminActor();
-      return actor.getRecentOrders(limit);
+      if (!actor) {
+        // Fallback: return most recent local orders
+        return getLocalOrders().slice(0, Number(limit)).map(localOrderToOrder);
+      }
+      try {
+        return await actor.getRecentOrders(limit);
+      } catch {
+        return getLocalOrders().slice(0, Number(limit)).map(localOrderToOrder);
+      }
     },
+    enabled: !isFetching,
   });
 }
 
@@ -326,12 +433,18 @@ export function useSubmitInquiry() {
 }
 
 export function useGetAllInquiries() {
+  const { actor, isFetching } = useActor();
   return useQuery<Inquiry[]>({
     queryKey: ["inquiries"],
     queryFn: async () => {
-      const actor = await getAdminActor();
-      return actor.getAllInquiries();
+      if (!actor) return [];
+      try {
+        return await actor.getAllInquiries();
+      } catch {
+        return [];
+      }
     },
+    enabled: !isFetching,
   });
 }
 
@@ -365,7 +478,11 @@ export function useIsCallerAdmin() {
     queryKey: ["isAdmin"],
     queryFn: async () => {
       if (!actor) return false;
-      return actor.isCallerAdmin();
+      try {
+        return await actor.isCallerAdmin();
+      } catch {
+        return false;
+      }
     },
     enabled: !!actor && !isFetching,
   });

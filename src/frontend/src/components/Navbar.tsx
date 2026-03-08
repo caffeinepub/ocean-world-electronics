@@ -1,9 +1,19 @@
 import { Button } from "@/components/ui/button";
 import { Link, useRouter } from "@tanstack/react-router";
-import { MapPin, Menu, Package, Phone, ShoppingCart, X } from "lucide-react";
+import {
+  MapPin,
+  Menu,
+  Moon,
+  Package,
+  Phone,
+  ShoppingCart,
+  Sun,
+  X,
+} from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
 import { useCart } from "../context/CartContext";
+import { useDarkMode } from "../hooks/useDarkMode";
 
 const simpleNavLinks = [
   { to: "/" as const, label: "Home" },
@@ -18,6 +28,7 @@ export default function Navbar() {
   const currentPath = router.state.location.pathname;
   const { totalItems } = useCart();
   const cartActive = currentPath.startsWith("/cart");
+  const { isDark, toggle: toggleDark } = useDarkMode();
 
   const isActive = (to: string) =>
     to === "/" ? currentPath === "/" : currentPath.startsWith(to);
@@ -28,12 +39,12 @@ export default function Navbar() {
   const linkClass = (active: boolean) =>
     `px-3 py-2 rounded-md text-sm font-medium font-display transition-colors ${
       active
-        ? "bg-ocean-light text-ocean-blue font-semibold"
-        : "text-foreground hover:bg-secondary hover:text-foreground"
+        ? "bg-ocean-light text-ocean-blue font-semibold border-b-2 border-ocean-blue dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-400"
+        : "text-foreground hover:bg-secondary hover:text-foreground dark:text-gray-300 dark:hover:bg-gray-800"
     }`;
 
   return (
-    <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-border shadow-xs">
+    <header className="sticky top-0 z-50 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md border-b border-border dark:border-gray-700 shadow-xs">
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
@@ -97,6 +108,22 @@ export default function Navbar() {
               <Phone className="h-4 w-4" />
               +91 98765 43210
             </a>
+            {/* Dark mode toggle */}
+            <button
+              type="button"
+              onClick={toggleDark}
+              data-ocid="nav.darkmode.toggle"
+              aria-label={
+                isDark ? "Switch to light mode" : "Switch to dark mode"
+              }
+              className="h-9 w-9 rounded-full border border-border hover:bg-secondary dark:hover:bg-gray-800 transition-colors flex items-center justify-center text-foreground"
+            >
+              {isDark ? (
+                <Sun className="h-4 w-4 text-yellow-400" />
+              ) : (
+                <Moon className="h-4 w-4" />
+              )}
+            </button>
             {/* Cart Icon with badge */}
             <Link
               to="/cart"
@@ -118,8 +145,24 @@ export default function Navbar() {
             </Link>
           </div>
 
-          {/* Mobile: cart + track order pill + hamburger */}
+          {/* Mobile: dark toggle + cart + track order pill + hamburger */}
           <div className="lg:hidden flex items-center gap-2">
+            {/* Dark mode toggle mobile */}
+            <button
+              type="button"
+              onClick={toggleDark}
+              data-ocid="nav.darkmode.toggle"
+              aria-label={
+                isDark ? "Switch to light mode" : "Switch to dark mode"
+              }
+              className="h-8 w-8 rounded-full border border-border hover:bg-secondary dark:hover:bg-gray-800 transition-colors flex items-center justify-center text-foreground"
+            >
+              {isDark ? (
+                <Sun className="h-3.5 w-3.5 text-yellow-400" />
+              ) : (
+                <Moon className="h-3.5 w-3.5" />
+              )}
+            </button>
             <Link
               to="/cart"
               data-ocid="nav.mobile.cart.link"
@@ -167,7 +210,7 @@ export default function Navbar() {
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
             transition={{ duration: 0.2 }}
-            className="lg:hidden border-t border-border bg-white"
+            className="lg:hidden border-t border-border bg-white dark:bg-gray-900"
           >
             <div className="container mx-auto px-4 py-4 flex flex-col gap-1">
               {simpleNavLinks.map((link, idx) => (
@@ -178,8 +221,8 @@ export default function Navbar() {
                   onClick={() => setMenuOpen(false)}
                   className={`px-4 py-3 rounded-md text-sm font-medium font-display transition-colors ${
                     isActive(link.to)
-                      ? "bg-ocean-light text-ocean-blue font-semibold"
-                      : "text-foreground hover:bg-secondary"
+                      ? "bg-ocean-light text-ocean-blue font-semibold border-l-2 border-ocean-blue dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-400"
+                      : "text-foreground hover:bg-secondary dark:text-gray-300 dark:hover:bg-gray-800"
                   }`}
                 >
                   {link.label}
@@ -192,8 +235,8 @@ export default function Navbar() {
                 onClick={() => setMenuOpen(false)}
                 className={`px-4 py-3 rounded-md text-sm font-medium font-display transition-colors ${
                   trackActive
-                    ? "bg-ocean-light text-ocean-blue font-semibold"
-                    : "text-foreground hover:bg-secondary"
+                    ? "bg-ocean-light text-ocean-blue font-semibold border-l-2 border-ocean-blue dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-400"
+                    : "text-foreground hover:bg-secondary dark:text-gray-300 dark:hover:bg-gray-800"
                 }`}
               >
                 Track Order
@@ -204,8 +247,8 @@ export default function Navbar() {
                 onClick={() => setMenuOpen(false)}
                 className={`flex items-center gap-2 px-4 py-3 rounded-md text-sm font-medium font-display transition-colors ${
                   myOrdersActive
-                    ? "bg-ocean-light text-ocean-blue font-semibold"
-                    : "text-foreground hover:bg-secondary"
+                    ? "bg-ocean-light text-ocean-blue font-semibold border-l-2 border-ocean-blue dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-400"
+                    : "text-foreground hover:bg-secondary dark:text-gray-300 dark:hover:bg-gray-800"
                 }`}
               >
                 <Package className="h-4 w-4" />
@@ -217,8 +260,8 @@ export default function Navbar() {
                 onClick={() => setMenuOpen(false)}
                 className={`flex items-center gap-2 px-4 py-3 rounded-md text-sm font-medium font-display transition-colors ${
                   cartActive
-                    ? "bg-ocean-light text-ocean-blue font-semibold"
-                    : "text-foreground hover:bg-secondary"
+                    ? "bg-ocean-light text-ocean-blue font-semibold border-l-2 border-ocean-blue dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-400"
+                    : "text-foreground hover:bg-secondary dark:text-gray-300 dark:hover:bg-gray-800"
                 }`}
               >
                 <ShoppingCart className="h-4 w-4" />

@@ -38,12 +38,14 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import {
   CheckCircle2,
   ChevronDown,
   ChevronUp,
   IndianRupee,
+  KeyRound,
   Loader2,
   LogOut,
   MessageSquare,
@@ -91,12 +93,14 @@ import {
   useUpdateProduct,
 } from "../hooks/useQueries";
 import {
+  type AdminCredentials,
   DEFAULT_STORE_SETTINGS,
   type OrderComplaint,
   type OrderFeedback,
   type OrderOverride,
   type ProductProfitEntry,
   type StoreSettings,
+  getAdminCredentials,
   getComplaints,
   getCourierInfos,
   getEstimatedDeliveries,
@@ -104,6 +108,7 @@ import {
   getOrderOverrides,
   getProfitData,
   getStoreSettings,
+  saveAdminCredentials,
   saveComplaint,
   saveCourierInfo,
   saveEstimatedDelivery,
@@ -201,6 +206,7 @@ export default function AdminDashboardPage() {
   const updateProduct = useUpdateProduct();
   const deleteProduct = useDeleteProduct();
   const updateCourierInfo = useUpdateOrderCourierInfo();
+  const qc = useQueryClient();
 
   // Product form state
   const [productDialogOpen, setProductDialogOpen] = useState(false);
@@ -226,9 +232,25 @@ export default function AdminDashboardPage() {
   const [settingsSaving, setSettingsSaving] = useState(false);
   const qrFileRef = useRef<HTMLInputElement>(null);
   const productImageFileRef = useRef<HTMLInputElement>(null);
+  const heroImageFileRef = useRef<HTMLInputElement>(null);
 
-  // Completed orders section toggle
-  const [completedExpanded, setCompletedExpanded] = useState(false);
+  // Admin credentials state
+  const [credForm, setCredForm] = useState<AdminCredentials>(() =>
+    getAdminCredentials(),
+  );
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showCredPasswords, setShowCredPasswords] = useState(false);
+  const [credSaving, setCredSaving] = useState(false);
+
+  // Orders section expand/collapse per status
+  const [expandedSections, setExpandedSections] = useState<
+    Record<string, boolean>
+  >({ pending: true });
+
+  // Clear all orders dialog state
+  const [clearOrdersDialogOpen, setClearOrdersDialogOpen] = useState(false);
+  const [clearOrdersPassword, setClearOrdersPassword] = useState("");
 
   // Feedback + complaints (from localStorage)
   const [feedbacks, _setFeedbacks] = useState<Record<string, OrderFeedback>>(
@@ -261,6 +283,20 @@ export default function AdminDashboardPage() {
     localStorage.removeItem("owAdmin");
     navigate({ to: "/admin" });
   };
+
+  function handleClearAllOrders() {
+    const creds = getAdminCredentials();
+    if (clearOrdersPassword !== creds.password) {
+      toast.error("Incorrect password. Orders not cleared.");
+      setClearOrdersPassword("");
+      return;
+    }
+    localStorage.removeItem("ow_local_orders");
+    qc.invalidateQueries({ queryKey: ["allOrders"] });
+    toast.success("All orders have been permanently deleted.");
+    setClearOrdersDialogOpen(false);
+    setClearOrdersPassword("");
+  }
 
   async function handleStatusUpdate(orderId: string, newStatus: string) {
     try {
@@ -314,19 +350,8 @@ export default function AdminDashboardPage() {
         toast.success("Product added successfully");
       }
       setProductDialogOpen(false);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      if (
-        msg.toLowerCase().includes("unauthorized") ||
-        msg.toLowerCase().includes("not authorized") ||
-        msg.toLowerCase().includes("caller is not admin")
-      ) {
-        toast.error(
-          "Authorization error — please log out and log back in, then try again.",
-        );
-      } else {
-        toast.error("Failed to save product. Please try again.");
-      }
+    } catch {
+      toast.error("Failed to save product. Please try again.");
     }
   }
 
@@ -424,6 +449,40 @@ export default function AdminDashboardPage() {
     }
   }
 
+  // Admin credentials save handler
+  function handleCredentialsSave() {
+    if (!credForm.username.trim()) {
+      toast.error("Username cannot be empty");
+      return;
+    }
+    if (newPassword) {
+      if (newPassword.length < 6) {
+        toast.error("Password must be at least 6 characters");
+        return;
+      }
+      if (newPassword !== confirmPassword) {
+        toast.error("Passwords do not match");
+        return;
+      }
+      saveAdminCredentials({
+        username: credForm.username.trim(),
+        password: newPassword,
+      });
+      setNewPassword("");
+      setConfirmPassword("");
+    } else {
+      saveAdminCredentials({
+        ...getAdminCredentials(),
+        username: credForm.username.trim(),
+      });
+    }
+    setCredSaving(true);
+    setTimeout(() => setCredSaving(false), 600);
+    toast.success(
+      "Login credentials updated. Please log in again with new credentials.",
+    );
+  }
+
   // QR file upload
   function handleQrUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -434,6 +493,23 @@ export default function AdminDashboardPage() {
       setSettingsForm((p) => ({ ...p, paymentQrBase64: result }));
     };
     reader.readAsDataURL(file);
+  }
+
+  // Hero image upload handler
+  function handleHeroImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const result = ev.target?.result as string;
+      const updated = { ...settingsForm, heroImageBase64: result };
+      setSettingsForm(updated);
+      saveStoreSettings(updated);
+      toast.success("Hero background image updated!");
+    };
+    reader.readAsDataURL(file);
+    // Reset input so same file can be re-selected
+    e.target.value = "";
   }
 
   // Product image upload handler
@@ -909,6 +985,19 @@ export default function AdminDashboardPage() {
                 <h3 className="font-heading font-semibold text-lg text-foreground">
                   All Orders
                 </h3>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  className="font-display gap-2"
+                  onClick={() => {
+                    setClearOrdersPassword("");
+                    setClearOrdersDialogOpen(true);
+                  }}
+                  data-ocid="admin.orders.delete_button"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Clear All Orders
+                </Button>
               </div>
               {ordersLoading ? (
                 <div
@@ -931,24 +1020,6 @@ export default function AdminDashboardPage() {
                 </div>
               ) : (
                 (() => {
-                  const STATUS_ORDER: Record<string, number> = {
-                    pending: 0,
-                    confirmed: 1,
-                    shipped: 2,
-                    out_for_delivery: 3,
-                    cancelled: 4,
-                  };
-                  const activeOrders = [...orders]
-                    .filter((o) => o.status !== "delivered")
-                    .sort(
-                      (a, b) =>
-                        (STATUS_ORDER[a.status] ?? 5) -
-                        (STATUS_ORDER[b.status] ?? 5),
-                    );
-                  const completedOrders = orders.filter(
-                    (o) => o.status === "delivered",
-                  );
-
                   const orderTableHeaders = (
                     <TableRow className="bg-secondary/50">
                       <TableHead className="font-display text-xs uppercase tracking-wider">
@@ -1099,61 +1170,117 @@ export default function AdminDashboardPage() {
                     );
                   };
 
-                  return (
-                    <div className="space-y-0">
-                      {/* Active orders table */}
-                      {activeOrders.length === 0 ? (
-                        <div className="p-10 text-center text-muted-foreground font-display">
-                          No active orders
-                        </div>
-                      ) : (
-                        <div className="overflow-x-auto">
-                          <Table>
-                            <TableHeader>{orderTableHeaders}</TableHeader>
-                            <TableBody>
-                              {activeOrders.map((order, idx) =>
-                                renderOrderRow(order, idx, false),
-                              )}
-                            </TableBody>
-                          </Table>
-                        </div>
-                      )}
+                  // Status-grouped sections config
+                  const STATUS_SECTIONS = [
+                    {
+                      key: "pending",
+                      label: "Pending",
+                      headerBg: "bg-yellow-50",
+                      textColor: "text-yellow-800",
+                      iconColor: "text-yellow-600",
+                      icon: <ShoppingBag className="h-4 w-4 text-yellow-600" />,
+                    },
+                    {
+                      key: "confirmed",
+                      label: "Confirmed",
+                      headerBg: "bg-blue-50",
+                      textColor: "text-blue-800",
+                      iconColor: "text-blue-600",
+                      icon: <CheckCircle2 className="h-4 w-4 text-blue-600" />,
+                    },
+                    {
+                      key: "shipped",
+                      label: "Shipped",
+                      headerBg: "bg-indigo-50",
+                      textColor: "text-indigo-800",
+                      iconColor: "text-indigo-600",
+                      icon: <Package className="h-4 w-4 text-indigo-600" />,
+                    },
+                    {
+                      key: "out_for_delivery",
+                      label: "Out for Delivery",
+                      headerBg: "bg-orange-50",
+                      textColor: "text-orange-800",
+                      iconColor: "text-orange-600",
+                      icon: <TrendingUp className="h-4 w-4 text-orange-600" />,
+                    },
+                    {
+                      key: "delivered",
+                      label: "Delivered",
+                      headerBg: "bg-green-50",
+                      textColor: "text-green-800",
+                      iconColor: "text-green-600",
+                      icon: <CheckCircle2 className="h-4 w-4 text-green-600" />,
+                    },
+                    {
+                      key: "cancelled",
+                      label: "Cancelled",
+                      headerBg: "bg-red-50",
+                      textColor: "text-red-800",
+                      iconColor: "text-red-600",
+                      icon: <X className="h-4 w-4 text-red-600" />,
+                    },
+                  ];
 
-                      {/* Completed orders collapsible */}
-                      {completedOrders.length > 0 && (
-                        <div className="border-t border-border">
-                          <button
-                            type="button"
-                            className="w-full flex items-center justify-between px-5 py-3 bg-green-50/60 hover:bg-green-50/80 transition-colors text-left"
-                            onClick={() => setCompletedExpanded((p) => !p)}
-                            data-ocid="admin.orders.toggle"
-                          >
-                            <div className="flex items-center gap-2">
-                              <CheckCircle2 className="h-4 w-4 text-green-600" />
-                              <span className="font-display font-semibold text-sm text-green-800">
-                                Completed Orders ({completedOrders.length})
-                              </span>
-                            </div>
-                            {completedExpanded ? (
-                              <ChevronUp className="h-4 w-4 text-green-600" />
-                            ) : (
-                              <ChevronDown className="h-4 w-4 text-green-600" />
+                  return (
+                    <div className="divide-y divide-border">
+                      {STATUS_SECTIONS.map((section) => {
+                        const sectionOrders = orders.filter(
+                          (o) => o.status === section.key,
+                        );
+                        if (sectionOrders.length === 0) return null;
+                        const isExpanded =
+                          expandedSections[section.key] ?? false;
+                        return (
+                          <div key={section.key}>
+                            <button
+                              type="button"
+                              className={`w-full flex items-center justify-between px-5 py-3 ${section.headerBg} hover:brightness-95 transition-all text-left`}
+                              onClick={() =>
+                                setExpandedSections((prev) => ({
+                                  ...prev,
+                                  [section.key]: !prev[section.key],
+                                }))
+                              }
+                              data-ocid={`admin.orders.${section.key}.toggle`}
+                            >
+                              <div className="flex items-center gap-2">
+                                {section.icon}
+                                <span
+                                  className={`font-display font-semibold text-sm ${section.textColor}`}
+                                >
+                                  {section.label} ({sectionOrders.length})
+                                </span>
+                              </div>
+                              {isExpanded ? (
+                                <ChevronUp
+                                  className={`h-4 w-4 ${section.iconColor}`}
+                                />
+                              ) : (
+                                <ChevronDown
+                                  className={`h-4 w-4 ${section.iconColor}`}
+                                />
+                              )}
+                            </button>
+                            {isExpanded && (
+                              <div className="overflow-x-auto">
+                                <Table>
+                                  <TableHeader>{orderTableHeaders}</TableHeader>
+                                  <TableBody>
+                                    {sectionOrders.map((order, idx) =>
+                                      renderOrderRow(
+                                        order,
+                                        idx,
+                                        section.key === "delivered",
+                                      ),
+                                    )}
+                                  </TableBody>
+                                </Table>
+                              </div>
                             )}
-                          </button>
-                          {completedExpanded && (
-                            <div className="overflow-x-auto">
-                              <Table>
-                                <TableHeader>{orderTableHeaders}</TableHeader>
-                                <TableBody>
-                                  {completedOrders.map((order, idx) =>
-                                    renderOrderRow(order, idx, true),
-                                  )}
-                                </TableBody>
-                              </Table>
-                            </div>
-                          )}
-                        </div>
-                      )}
+                          </div>
+                        );
+                      })}
                     </div>
                   );
                 })()
@@ -1529,6 +1656,82 @@ export default function AdminDashboardPage() {
                   </div>
                 </div>
 
+                {/* Hero Background Image */}
+                <div className="border-t border-border pt-6 mb-6">
+                  <div className="flex items-center gap-2 mb-4">
+                    <Upload className="h-5 w-5 text-ocean-blue" />
+                    <h4 className="font-heading font-semibold text-base text-foreground">
+                      Hero Background Image
+                    </h4>
+                  </div>
+                  <p className="text-sm text-muted-foreground font-display mb-4">
+                    Upload a custom background image for the website's hero
+                    section on the home page.
+                  </p>
+                  <div className="flex items-start gap-6 flex-wrap">
+                    <div className="flex flex-col gap-2">
+                      <img
+                        src={
+                          settingsForm.heroImageBase64 ||
+                          "/assets/generated/hero-electronics.dim_1400x600.jpg"
+                        }
+                        alt="Hero background preview"
+                        className="w-[200px] h-[100px] object-cover rounded-lg border border-border"
+                      />
+                      <p className="text-xs text-muted-foreground font-display">
+                        Current hero image
+                      </p>
+                    </div>
+                    <div className="flex flex-col gap-3">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        ref={heroImageFileRef}
+                        onChange={handleHeroImageUpload}
+                        className="hidden"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => heroImageFileRef.current?.click()}
+                        className="font-display h-11 border-ocean-blue text-ocean-blue hover:bg-ocean-light"
+                        data-ocid="settings.hero_image.upload_button"
+                      >
+                        <Upload className="h-4 w-4 mr-2" />
+                        Upload New Image
+                      </Button>
+                      {settingsForm.heroImageBase64 && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="text-destructive font-display justify-start"
+                          onClick={() => {
+                            const updated = {
+                              ...settingsForm,
+                              heroImageBase64: "",
+                            };
+                            setSettingsForm(updated);
+                            saveStoreSettings(updated);
+                            toast.success(
+                              "Hero image removed. Default image restored.",
+                            );
+                          }}
+                          data-ocid="settings.hero_image.delete_button"
+                        >
+                          <X className="h-4 w-4 mr-2" />
+                          Remove Custom Image
+                        </Button>
+                      )}
+                      <p className="text-xs text-muted-foreground font-display">
+                        Recommended: 1400×600px or wider
+                        <br />
+                        Formats: JPG, PNG, WebP
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
                 {/* Payment Methods */}
                 <div className="border-t border-border pt-6 mb-6">
                   <div className="flex items-center gap-2 mb-4">
@@ -1629,6 +1832,98 @@ export default function AdminDashboardPage() {
                       </div>
                     </div>
                   </div>
+                </div>
+
+                {/* Change Login Credentials */}
+                <div className="border-t border-border pt-6 mb-6">
+                  <div className="flex items-center gap-2 mb-4">
+                    <KeyRound className="h-5 w-5 text-ocean-blue" />
+                    <h4 className="font-heading font-semibold text-base text-foreground">
+                      Change Login Credentials
+                    </h4>
+                  </div>
+                  <p className="text-sm text-muted-foreground font-display mb-4">
+                    Update the admin username or password. Leave the password
+                    fields blank to keep the current password.
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 max-w-2xl mb-4">
+                    <div className="sm:col-span-2">
+                      <Label className="font-display text-sm font-medium mb-1.5 block">
+                        Username
+                      </Label>
+                      <Input
+                        value={credForm.username}
+                        onChange={(e) =>
+                          setCredForm((p) => ({
+                            ...p,
+                            username: e.target.value,
+                          }))
+                        }
+                        placeholder="Admin username"
+                        className="font-display h-11"
+                        data-ocid="admin.settings.cred_username.input"
+                      />
+                    </div>
+                    <div>
+                      <Label className="font-display text-sm font-medium mb-1.5 block">
+                        New Password
+                      </Label>
+                      <div className="relative">
+                        <Input
+                          type={showCredPasswords ? "text" : "password"}
+                          value={newPassword}
+                          onChange={(e) => setNewPassword(e.target.value)}
+                          placeholder="Enter new password"
+                          className="font-display h-11 pr-10"
+                          data-ocid="admin.settings.new_password.input"
+                        />
+                        <button
+                          type="button"
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                          onClick={() => setShowCredPasswords((v) => !v)}
+                          data-ocid="admin.settings.toggle"
+                        >
+                          {showCredPasswords ? (
+                            <X className="h-4 w-4" />
+                          ) : (
+                            <Shield className="h-4 w-4" />
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                    <div>
+                      <Label className="font-display text-sm font-medium mb-1.5 block">
+                        Confirm New Password
+                      </Label>
+                      <Input
+                        type={showCredPasswords ? "text" : "password"}
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        placeholder="Re-enter new password"
+                        className="font-display h-11"
+                        data-ocid="admin.settings.confirm_password.input"
+                      />
+                    </div>
+                  </div>
+                  <Button
+                    onClick={handleCredentialsSave}
+                    variant="outline"
+                    className="font-display border-ocean-blue text-ocean-blue hover:bg-ocean-light"
+                    disabled={credSaving}
+                    data-ocid="admin.settings.cred_save_button"
+                  >
+                    {credSaving ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <KeyRound className="h-4 w-4 mr-2" />
+                        Update Credentials
+                      </>
+                    )}
+                  </Button>
                 </div>
 
                 <div className="flex items-center gap-3">
@@ -2146,6 +2441,61 @@ export default function AdminDashboardPage() {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Clear All Orders Dialog */}
+      <AlertDialog
+        open={clearOrdersDialogOpen}
+        onOpenChange={setClearOrdersDialogOpen}
+      >
+        <AlertDialogContent data-ocid="admin.orders.dialog">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="font-heading text-destructive flex items-center gap-2">
+              <Trash2 className="h-5 w-5" />
+              Sabhi Orders Delete Karein?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="font-display text-sm leading-relaxed">
+              <strong>
+                Ye action sabhi orders permanently delete kar dega.
+              </strong>{" "}
+              Isse undo nahi kiya ja sakta. (This will permanently delete ALL
+              orders. This cannot be undone.)
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="py-2">
+            <Label className="font-display text-sm font-medium mb-1.5 block">
+              Confirm karne ke liye admin password darj karein:
+            </Label>
+            <Input
+              type="password"
+              placeholder="Admin password"
+              value={clearOrdersPassword}
+              onChange={(e) => setClearOrdersPassword(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleClearAllOrders();
+              }}
+              className="font-display h-11"
+              data-ocid="admin.orders.input"
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              className="font-display"
+              onClick={() => setClearOrdersPassword("")}
+              data-ocid="admin.orders.cancel_button"
+            >
+              Ruk Jao (Cancel)
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleClearAllOrders}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 font-display"
+              data-ocid="admin.orders.confirm_button"
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Haan, Sab Delete Karo
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Order Edit Dialog */}
       <Dialog open={orderDialogOpen} onOpenChange={setOrderDialogOpen}>

@@ -10,7 +10,6 @@ import {
 } from "@tanstack/react-router";
 import Footer from "./components/Footer";
 import Navbar from "./components/Navbar";
-import SeedData from "./components/SeedData";
 import { CartProvider } from "./context/CartContext";
 import AboutPage from "./pages/AboutPage";
 import AdminDashboardPage from "./pages/AdminDashboardPage";
@@ -30,8 +29,7 @@ export { Link, useNavigate };
 const rootRoute = createRootRoute({
   component: () => (
     <CartProvider>
-      <div className="min-h-screen flex flex-col bg-background">
-        <SeedData />
+      <div className="min-h-screen flex flex-col bg-background dark:bg-gray-950">
         <Navbar />
         <main className="flex-1">
           <Outlet />

@@ -6,12 +6,12 @@ import { Eye, EyeOff, Loader2, Shield } from "lucide-react";
 import { motion } from "motion/react";
 import { useState } from "react";
 import { toast } from "sonner";
-
-const ADMIN_USERNAME = "bhawna paneru";
-const ADMIN_PASSWORD = "1995@Bhawna";
+import { useActor } from "../hooks/useActor";
+import { getAdminCredentials } from "../utils/storeSettings";
 
 export default function AdminLoginPage() {
   const navigate = useNavigate();
+  const { actor } = useActor();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -24,8 +24,17 @@ export default function AdminLoginPage() {
     // Simulate a brief loading delay for UX
     await new Promise((r) => setTimeout(r, 400));
 
-    if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
+    const creds = getAdminCredentials();
+    if (username === creds.username && password === creds.password) {
       localStorage.setItem("owAdmin", "1");
+      // Initialize backend to ensure data is seeded and backend is ready
+      if (actor) {
+        try {
+          await actor.initialize();
+        } catch {
+          // Non-critical: backend may already be initialized
+        }
+      }
       toast.success("Welcome back, Bhawna!");
       navigate({ to: "/admin/dashboard" });
     } else {

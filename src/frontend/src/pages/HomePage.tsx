@@ -12,8 +12,10 @@ import {
   Truck,
 } from "lucide-react";
 import { motion } from "motion/react";
+import { useState } from "react";
 import ProductCard from "../components/ProductCard";
 import { useGetAllProducts } from "../hooks/useQueries";
+import { getStoreSettings } from "../utils/storeSettings";
 
 const features = [
   {
@@ -64,16 +66,23 @@ const testimonials = [
   },
 ];
 
+const DEFAULT_HERO = "/assets/generated/hero-electronics.dim_1400x600.jpg";
+
 export default function HomePage() {
   const { data: products, isLoading } = useGetAllProducts();
   const featured = products?.slice(0, 6) ?? [];
+
+  const [heroSrc] = useState<string>(() => {
+    const settings = getStoreSettings();
+    return settings.heroImageBase64 || DEFAULT_HERO;
+  });
 
   return (
     <div>
       {/* ── Hero Section ── */}
       <section className="relative overflow-hidden min-h-[500px] lg:min-h-[580px]">
         <img
-          src="/assets/generated/hero-electronics.dim_1400x600.jpg"
+          src={heroSrc}
           alt="Ocean World Electronics"
           className="absolute inset-0 w-full h-full object-cover"
         />

@@ -1,28 +1,33 @@
 # Ocean World Electronics
 
 ## Current State
-Full e-commerce website with admin dashboard, product management, order tracking, cart, feedback, complaints, courier info, and profit tracker. All data stored in localStorage. Admin login via hardcoded credentials. Track Order page lets customers find orders by phone number.
+- Full e-commerce website with HomePage, ProductsPage, ProductDetailPage, CartPage, ContactPage, AboutPage, TrackOrderPage, MyOrdersPage
+- AdminLoginPage at /admin with hardcoded credentials (localStorage-based)
+- AdminDashboardPage at /admin/dashboard with tabs: Orders, Products, Analytics, Profit Tracker, Feedback, Complaints, Settings
+- Navbar component with links: Home, Products, About, Contact, Track Order, My Orders -- active link styling uses `bg-ocean-light text-ocean-blue` class
+- Hero background image in HomePage is a static generated file `/assets/generated/hero-electronics.dim_1400x600.jpg`
+- StoreSettings stored in localStorage via `storeSettings.ts` -- has phone, email, address, whatsapp, paymentQrBase64 etc.
+- No dark mode support
+- No admin ability to change the hero background image
 
 ## Requested Changes (Diff)
 
 ### Add
-- Cancel Order button on Track Order page (only visible when order status is "pending" or "confirmed")
-- Estimated Delivery Date field in Admin Order Edit dialog
-- Estimated delivery date display on Track Order page per order
-- Delivery disclaimer text on About Us page
+- **Dark mode toggle**: A sun/moon icon button in the Navbar (both desktop and mobile) that toggles between light and dark mode. Use localStorage to persist preference. Apply `dark` class to `<html>` element. All existing Tailwind classes should support dark mode variants.
+- **Admin hero image upload**: In the Admin Dashboard Settings tab, add an "Upload Hero Background Image" section. Admin can upload a photo from their device (base64 stored in localStorage under key `heroImageBase64`). If set, HomePage hero section uses this uploaded image instead of the static generated file.
 
 ### Modify
-- `storeSettings.ts`: Add `estimatedDeliveryDate` to `LocalOrder` and `updateLocalOrderDetails` already supports partials; add `saveOrderEstimatedDelivery` helper and `getOrderEstimatedDeliveries` map
-- `TrackOrderPage.tsx`: Show estimated delivery date badge; show Cancel button only for pending/confirmed; call cancel handler that updates localStorage status
-- `AdminDashboardPage.tsx`: Add estimated delivery date input in Order Edit dialog; save to localStorage on save
-- `AboutPage.tsx`: Add delivery disclaimer card/callout in "Our Story" section or just before CTA
+- **Navbar active link highlight**: The current active link already has `bg-ocean-light text-ocean-blue` styling. Enhance it to be more visually prominent -- add a colored bottom border or stronger color contrast so it is clearly highlighted. Ensure it works in both light and dark mode.
+- **Dark mode**: Update `index.css` / `App.tsx` root layout to support dark mode. Add `dark:` variants where needed for background and text on key layout elements (navbar, footer, main bg).
 
 ### Remove
-- Nothing
+- Nothing removed
 
 ## Implementation Plan
-1. Add `ORDER_ESTIMATED_DELIVERY_KEY` storage helpers in `storeSettings.ts`
-2. Add cancel order function in `storeSettings.ts`
-3. Update `AdminDashboardPage.tsx` Order Edit dialog to include estimated delivery date field
-4. Update `TrackOrderPage.tsx` to show estimated delivery date and cancel button
-5. Update `AboutPage.tsx` with delivery disclaimer
+1. Create a `useDarkMode` hook (or inline in Navbar) that reads/writes `localStorage.theme` and toggles `dark` class on `<html>`.
+2. Add dark mode toggle button (Sun/Moon icon) to Navbar desktop actions area and mobile menu area.
+3. In `storeSettings.ts`, add `heroImageBase64` field to StoreSettings interface.
+4. In `HomePage.tsx`, read heroImageBase64 from localStorage on render; if present use it as the `src` for the hero `<img>` tag (as a data URL), otherwise fall back to the static asset path.
+5. In `AdminDashboardPage.tsx` Settings tab, add "Upload Hero Background Image" section with a file input (accept="image/*"), preview of current image, and a remove button. Save base64 to storeSettings.
+6. Ensure navbar active link has a more prominent highlight -- add `border-b-2 border-ocean-blue` or similar to the active link class.
+7. Add `dark:` Tailwind variants to Navbar, Footer, and root layout bg for dark mode support.

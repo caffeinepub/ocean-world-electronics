@@ -10,6 +10,7 @@ export interface StoreSettings {
   paymentUpiId: string;
   paymentUpiPhone: string;
   paymentQrBase64: string;
+  heroImageBase64: string;
 }
 
 export const DEFAULT_STORE_SETTINGS: StoreSettings = {
@@ -21,6 +22,7 @@ export const DEFAULT_STORE_SETTINGS: StoreSettings = {
   paymentUpiId: "",
   paymentUpiPhone: "",
   paymentQrBase64: "",
+  heroImageBase64: "",
 };
 
 const STORE_SETTINGS_KEY = "store_settings";
@@ -186,9 +188,28 @@ export function updateLocalProduct(productId: string, updated: Product): void {
   saveLocalProducts(existing);
 }
 
+const DELETED_PRODUCTS_KEY = "ow_deleted_products";
+
+export function getDeletedProductIds(): Set<string> {
+  try {
+    const raw = localStorage.getItem(DELETED_PRODUCTS_KEY);
+    if (!raw) return new Set();
+    return new Set(JSON.parse(raw) as string[]);
+  } catch {
+    return new Set();
+  }
+}
+
+function markProductDeleted(productId: string): void {
+  const ids = getDeletedProductIds();
+  ids.add(productId);
+  localStorage.setItem(DELETED_PRODUCTS_KEY, JSON.stringify([...ids]));
+}
+
 export function deleteLocalProduct(productId: string): void {
   const existing = getLocalProducts().filter((p) => p.id !== productId);
   saveLocalProducts(existing);
+  markProductDeleted(productId);
 }
 
 // ── Local Orders (fallback when backend unavailable) ──────────────
@@ -317,6 +338,37 @@ export function saveEstimatedDelivery(orderId: string, date: string): void {
 // ── Cancel Order (by customer on Track Order page) ────────────────
 export function cancelLocalOrder(orderId: string): void {
   updateLocalOrderStatus(orderId, "cancelled");
+}
+
+// ── Admin Credentials ─────────────────────────────────────────────
+const ADMIN_CREDENTIALS_KEY = "ow_admin_credentials";
+
+export interface AdminCredentials {
+  username: string;
+  password: string;
+}
+
+export const DEFAULT_ADMIN_CREDENTIALS: AdminCredentials = {
+  username: "bhawna paneru",
+  password: "1995@Bhawna",
+};
+
+export function getAdminCredentials(): AdminCredentials {
+  try {
+    const raw = localStorage.getItem(ADMIN_CREDENTIALS_KEY);
+    if (!raw) return { ...DEFAULT_ADMIN_CREDENTIALS };
+    const parsed = JSON.parse(raw) as Partial<AdminCredentials>;
+    return {
+      username: parsed.username || DEFAULT_ADMIN_CREDENTIALS.username,
+      password: parsed.password || DEFAULT_ADMIN_CREDENTIALS.password,
+    };
+  } catch {
+    return { ...DEFAULT_ADMIN_CREDENTIALS };
+  }
+}
+
+export function saveAdminCredentials(creds: AdminCredentials): void {
+  localStorage.setItem(ADMIN_CREDENTIALS_KEY, JSON.stringify(creds));
 }
 
 // ── Profit Tracker ────────────────────────────────────────────────
