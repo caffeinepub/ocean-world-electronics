@@ -25,29 +25,34 @@ import {
 import { useActor } from "./useActor";
 
 // ── Products ─────────────────────────────────────────────────────
-// Try ICP backend first, fall back to localStorage silently.
+// Backend is always tried first. localStorage is only a fallback.
 
 export function useGetAllProducts() {
   const { actor } = useActor();
   return useQuery<Product[]>({
     queryKey: ["products"],
     queryFn: async () => {
-      // Try backend first
       if (actor) {
         try {
           const backendProducts = await actor.getAllProducts();
-          if (backendProducts && backendProducts.length > 0) {
-            return backendProducts;
+          if (backendProducts && backendProducts.length >= 0) {
+            const backendIds = new Set(backendProducts.map((p) => p.id));
+            const deletedIds = getDeletedProductIds();
+            const localOnly = getLocalProducts().filter(
+              (p) => !backendIds.has(p.id) && !deletedIds.has(p.id),
+            );
+            return [...backendProducts, ...localOnly];
           }
         } catch {
-          // fall through to localStorage
+          // fall through
         }
       }
-      // Fall back to localStorage
       const deletedIds = getDeletedProductIds();
       return getLocalProducts().filter((p) => !deletedIds.has(p.id));
     },
     enabled: true,
+    staleTime: 0,
+    refetchInterval: 30_000,
   });
 }
 
@@ -56,15 +61,14 @@ export function useGetProduct(productId: string) {
   return useQuery<Product>({
     queryKey: ["product", productId],
     queryFn: async () => {
-      // Try backend first
       if (actor) {
         try {
-          return await actor.getProduct(productId);
+          const p = await actor.getProduct(productId);
+          if (p) return p;
         } catch {
-          // fall through to localStorage
+          // fall through
         }
       }
-      // Fall back to localStorage
       const deletedIds = getDeletedProductIds();
       if (deletedIds.has(productId)) throw new Error("Product not found");
       const product = getLocalProducts().find((p) => p.id === productId);
@@ -81,14 +85,14 @@ export function useCreateProduct() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (product: Product) => {
-      // Save locally first (guaranteed)
+      // Save locally immediately (instant UI feedback)
       addLocalProduct(product);
-      // Also try backend (best-effort)
+      // Try backend
       if (actor) {
         try {
           await actor.createProduct(product);
         } catch {
-          // saved locally — ignore error
+          // saved locally as fallback
         }
       }
     },
@@ -104,14 +108,12 @@ export function useUpdateProduct() {
       productId,
       product,
     }: { productId: string; product: Product }) => {
-      // Update locally first
       updateLocalProduct(productId, product);
-      // Also try backend (best-effort)
       if (actor) {
         try {
           await actor.updateProduct(productId, product);
         } catch {
-          // saved locally — ignore error
+          // saved locally
         }
       }
     },
@@ -124,14 +126,12 @@ export function useDeleteProduct() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (productId: string) => {
-      // Delete locally first
       deleteLocalProduct(productId);
-      // Also try backend (best-effort)
       if (actor) {
         try {
           await actor.deleteProduct(productId);
         } catch {
-          // deleted locally — ignore error
+          // deleted locally
         }
       }
     },
@@ -140,7 +140,6 @@ export function useDeleteProduct() {
 }
 
 // ── Orders ────────────────────────────────────────────────────────
-// Save locally always, also try backend.
 
 export function usePlaceOrder() {
   const { actor } = useActor();
@@ -163,7 +162,23 @@ export function usePlaceOrder() {
       const localProduct = getLocalProducts().find((p) => p.id === productId);
       const orderId = `order_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 
-      // Save locally always (guaranteed to work)
+      // Try backend first
+      if (actor) {
+        try {
+          await actor.placeOrder(
+            customerName,
+            phone,
+            address,
+            quantity,
+            productId,
+            specialDescription,
+          );
+        } catch {
+          // fall through to local save
+        }
+      }
+
+      // Always save locally for instant UI and fallback
       saveLocalOrder({
         id: orderId,
         customerName,
@@ -180,22 +195,6 @@ export function usePlaceOrder() {
         courierTrackingNumber: "",
       });
 
-      // Also try backend (best-effort)
-      if (actor) {
-        try {
-          await actor.placeOrder(
-            customerName,
-            phone,
-            address,
-            quantity,
-            productId,
-            specialDescription,
-          );
-        } catch {
-          // saved locally — ignore error
-        }
-      }
-
       return orderId;
     },
   });
@@ -206,21 +205,26 @@ export function useGetAllOrders() {
   return useQuery<Order[]>({
     queryKey: ["allOrders"],
     queryFn: async () => {
-      // Try backend first
       if (actor) {
         try {
           const backendOrders = await actor.getAllOrders();
-          if (backendOrders && backendOrders.length > 0) {
-            return backendOrders;
+          if (backendOrders && backendOrders.length >= 0) {
+            // Merge backend + local-only orders
+            const backendIds = new Set(backendOrders.map((o) => o.id));
+            const localOnly = getLocalOrders()
+              .filter((o) => !backendIds.has(o.id))
+              .map(localOrderToOrder);
+            return [...backendOrders, ...localOnly];
           }
         } catch {
-          // fall through to localStorage
+          // fall through
         }
       }
-      // Fall back to localStorage
       return getLocalOrders().map(localOrderToOrder);
     },
     enabled: true,
+    staleTime: 0,
+    refetchInterval: 15_000,
   });
 }
 
@@ -232,14 +236,12 @@ export function useUpdateOrderStatus() {
       orderId,
       newStatus,
     }: { orderId: string; newStatus: OrderStatus }) => {
-      // Update locally first
       updateLocalOrderStatus(orderId, newStatus as unknown as string);
-      // Also try backend (best-effort)
       if (actor) {
         try {
           await actor.updateOrderStatus(orderId, newStatus);
         } catch {
-          // updated locally — ignore error
+          // updated locally
         }
       }
     },
@@ -268,9 +270,7 @@ export function useUpdateOrderCourierInfo() {
       courierName: string;
       courierTrackingNumber: string;
     }) => {
-      // Update locally first
       updateLocalOrderCourier(orderId, courierName, courierTrackingNumber);
-      // Also try backend (best-effort)
       if (actor) {
         try {
           await actor.updateOrderCourierInfo(
@@ -279,7 +279,7 @@ export function useUpdateOrderCourierInfo() {
             courierTrackingNumber,
           );
         } catch {
-          // updated locally — ignore error
+          // updated locally
         }
       }
     },
@@ -287,9 +287,8 @@ export function useUpdateOrderCourierInfo() {
   });
 }
 
-// ── Analytics (try backend, fall back to localStorage) ────────────
+// ── Analytics ────────────────────────────────────────────────────
 
-/** Statuses that count toward revenue */
 const REVENUE_STATUSES = new Set([
   "confirmed",
   "Confirmed",
@@ -312,6 +311,7 @@ export function useGetTotalOrdersCount() {
       return BigInt(getLocalOrders().length);
     },
     enabled: true,
+    staleTime: 0,
   });
 }
 
@@ -339,6 +339,7 @@ export function useGetTotalRevenue() {
       return total;
     },
     enabled: true,
+    staleTime: 0,
   });
 }
 
@@ -365,6 +366,7 @@ export function useGetOrdersCountByStatus() {
       );
     },
     enabled: true,
+    staleTime: 0,
   });
 }
 
@@ -385,17 +387,19 @@ export function useGetMonthlySalesSummary() {
         string,
         { year: number; month: number; revenue: bigint; count: number }
       >();
-
       for (const o of orders) {
         const ts = Number(o.createdAt);
         const d = new Date(Number.isNaN(ts) ? Date.now() : ts);
         const year = d.getFullYear();
         const month = d.getMonth() + 1;
         const key = `${year}-${month}`;
-
-        const existing = map.get(key) ?? { year, month, revenue: 0n, count: 0 };
+        const existing = map.get(key) ?? {
+          year,
+          month,
+          revenue: 0n,
+          count: 0,
+        };
         existing.count += 1;
-
         if (REVENUE_STATUSES.has(o.status)) {
           const price = BigInt(o.productPrice || "0");
           const qty = BigInt(o.quantity || "1");
@@ -403,7 +407,6 @@ export function useGetMonthlySalesSummary() {
         }
         map.set(key, existing);
       }
-
       return [...map.values()]
         .sort((a, b) =>
           a.year !== b.year ? a.year - b.year : a.month - b.month,
@@ -416,6 +419,7 @@ export function useGetMonthlySalesSummary() {
         }));
     },
     enabled: true,
+    staleTime: 0,
   });
 }
 
@@ -434,13 +438,11 @@ export function useGetTopSellingProducts(limit: bigint) {
       const orders = getLocalOrders();
       const products = getLocalProducts();
       const productNameMap = new Map(products.map((p) => [p.id, p.name]));
-
       const qtys = new Map<string, bigint>();
       for (const o of orders) {
         const prev = qtys.get(o.productId) ?? 0n;
         qtys.set(o.productId, prev + BigInt(o.quantity || "1"));
       }
-
       return [...qtys.entries()]
         .sort((a, b) => (b[1] > a[1] ? 1 : b[1] < a[1] ? -1 : 0))
         .slice(0, Number(limit))
@@ -451,6 +453,7 @@ export function useGetTopSellingProducts(limit: bigint) {
         }));
     },
     enabled: true,
+    staleTime: 0,
   });
 }
 
@@ -473,11 +476,11 @@ export function useGetRecentOrders(limit: bigint) {
         .map(localOrderToOrder);
     },
     enabled: true,
+    staleTime: 0,
   });
 }
 
-// ── Inquiries ────────────────────────────────────────────────────
-// Try actor first; fall back to localStorage so messages are never lost.
+// ── Inquiries ─────────────────────────────────────────────────────
 
 export function useSubmitInquiry() {
   const { actor } = useActor();
@@ -491,7 +494,6 @@ export function useSubmitInquiry() {
       phone: string;
       message: string;
     }) => {
-      // Save locally always (guaranteed to work)
       const localInquiry = {
         id: `inq_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
         name,
@@ -500,13 +502,11 @@ export function useSubmitInquiry() {
         timestamp: Date.now().toString(),
       };
       saveLocalInquiry(localInquiry);
-
-      // Also try backend (best-effort, non-blocking)
       if (actor) {
         try {
           await actor.submitInquiry(name, phone, message);
         } catch {
-          // already saved locally — ignore error
+          // saved locally
         }
       }
     },
@@ -518,14 +518,10 @@ export function useGetAllInquiries() {
   return useQuery<Inquiry[]>({
     queryKey: ["inquiries"],
     queryFn: async () => {
-      // Always include local inquiries
       const localInquiries = getLocalInquiries().map(localInquiryToInquiry);
-
       if (!actor) return localInquiries;
-
       try {
         const backendInquiries = await actor.getAllInquiries();
-        // Merge: local + backend (deduplicate by timestamp+phone combo)
         const backendKeys = new Set(
           backendInquiries.map((i) => `${i.phone}_${i.timestamp}`),
         );
@@ -538,6 +534,7 @@ export function useGetAllInquiries() {
       }
     },
     enabled: true,
+    staleTime: 0,
   });
 }
 
@@ -547,32 +544,30 @@ export function useGetOrdersByPhone(phone: string) {
     queryKey: ["ordersByPhone", phone],
     queryFn: async () => {
       if (!phone.trim()) return [];
-
-      // Try backend first
       if (actor) {
         try {
           const backendOrders = await actor.getOrdersByPhone(phone.trim());
-          if (backendOrders && backendOrders.length > 0) {
-            return backendOrders;
+          if (backendOrders && backendOrders.length >= 0) {
+            const backendIds = new Set(backendOrders.map((o) => o.id));
+            const localOnly = getLocalOrders()
+              .filter((o) => o.phone === phone.trim() && !backendIds.has(o.id))
+              .map(localOrderToOrder);
+            return [...backendOrders, ...localOnly];
           }
         } catch {
           // fall through
         }
       }
-
-      // Fall back to localStorage
       return getLocalOrders()
         .filter((o) => o.phone === phone.trim())
         .map(localOrderToOrder);
     },
     enabled: !!phone.trim(),
+    staleTime: 0,
   });
 }
 
-// ── Auth / Admin ──────────────────────────────────────────────────
-// isCallerAdmin is backend-only; keep it as a lightweight check.
-// Admin auth in this app is handled by localStorage credential check,
-// so this always returns false when backend unavailable — that is fine.
+// ── Auth ──────────────────────────────────────────────────────────
 
 export function useIsCallerAdmin() {
   const { actor, isFetching } = useActor();
