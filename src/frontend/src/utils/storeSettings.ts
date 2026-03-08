@@ -371,6 +371,44 @@ export function saveAdminCredentials(creds: AdminCredentials): void {
   localStorage.setItem(ADMIN_CREDENTIALS_KEY, JSON.stringify(creds));
 }
 
+// ── Local Inquiries ────────────────────────────────────────────────
+const LOCAL_INQUIRIES_KEY = "ow_local_inquiries";
+
+export interface LocalInquiry {
+  id: string;
+  name: string;
+  phone: string;
+  message: string;
+  timestamp: string; // milliseconds as string
+}
+
+export function getLocalInquiries(): LocalInquiry[] {
+  try {
+    const raw = localStorage.getItem(LOCAL_INQUIRIES_KEY);
+    if (!raw) return [];
+    return JSON.parse(raw) as LocalInquiry[];
+  } catch {
+    return [];
+  }
+}
+
+export function saveLocalInquiry(inquiry: LocalInquiry): void {
+  const existing = getLocalInquiries();
+  existing.unshift(inquiry); // newest first
+  localStorage.setItem(LOCAL_INQUIRIES_KEY, JSON.stringify(existing));
+}
+
+export function localInquiryToInquiry(
+  o: LocalInquiry,
+): import("../backend.d").Inquiry {
+  return {
+    name: o.name,
+    phone: o.phone,
+    message: o.message,
+    timestamp: BigInt(o.timestamp),
+  };
+}
+
 // ── Profit Tracker ────────────────────────────────────────────────
 export interface ProductProfitEntry {
   productId: string;
