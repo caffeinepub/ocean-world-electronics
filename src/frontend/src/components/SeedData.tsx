@@ -1,26 +1,24 @@
 import { useQueryClient } from "@tanstack/react-query";
 /**
- * Sample products to seed the backend on first load.
- * Called once from the app when no products exist.
- * Uses getAdminActor directly to ensure admin auth for createProduct.
+ * Sample products to seed Firestore on first admin login.
+ * Called once when no products exist.
+ *
+ * EDIT PRODUCT DETAILS HERE
+ * Add or change the sample products below.
  */
 import { useEffect, useRef } from "react";
-import { createActorWithConfig } from "../config";
+import type { Product } from "../backend.d";
 import { useGetAllProducts } from "../hooks/useQueries";
+import { fsCreateProduct } from "../services/firestoreService";
+import { addLocalProduct } from "../utils/storeSettings";
 
-const ADMIN_TOKEN = "1995@Bhawna";
-
-async function getAdminActor() {
-  const actor = await createActorWithConfig();
-  try {
-    await (actor as any)._initializeAccessControlWithSecret(ADMIN_TOKEN);
-  } catch {
-    // ignore — may already be initialized
-  }
-  return actor;
-}
-
-const SAMPLE_PRODUCTS = [
+// ============================================================
+// EDIT PRODUCT DETAILS HERE
+// Change the sample products below to your real products.
+// Each product has: id, name, price (in paise/rupees),
+// description, category, imageUrl, etc.
+// ============================================================
+const SAMPLE_PRODUCTS: Product[] = [
   {
     id: "prod_001",
     name: "Samsung Galaxy S24 5G",
@@ -70,7 +68,7 @@ const SAMPLE_PRODUCTS = [
     category: "Earbuds",
     price: BigInt(1299),
     description:
-      "42 hours playtime, ASAP charge, IPX4 water resistance, immersive BEAST™ mode sound.",
+      "42 hours playtime, ASAP charge, IPX4 water resistance, immersive BEAST\u2122 mode sound.",
     imageUrl: "/assets/generated/product-earbuds.dim_400x400.jpg",
     stockQuantity: BigInt(60),
     additionalDetails:
@@ -102,7 +100,7 @@ const SAMPLE_PRODUCTS = [
     imageUrl: "/assets/generated/product-lamp.dim_400x400.jpg",
     stockQuantity: BigInt(30),
     additionalDetails:
-      "Wattage: 9W LED\nColor Temperature: 3000K – 6500K\nDimming: 5 levels touch control\nUSB Port: 5V/1A charging\nBase: Weighted anti-slip\nWarranty: 2 Years Wipro",
+      "Wattage: 9W LED\nColor Temperature: 3000K \u2013 6500K\nDimming: 5 levels touch control\nUSB Port: 5V/1A charging\nBase: Weighted anti-slip\nWarranty: 2 Years Wipro",
     isAvailable: true,
   },
 ];
@@ -115,29 +113,23 @@ export default function SeedData() {
   const seeded = useRef(false);
 
   useEffect(() => {
-    // Only seed when admin is logged in AND we haven't seeded before (ever)
     const isAdmin = localStorage.getItem("owAdmin") === "1";
     const alreadySeeded = localStorage.getItem(SEED_DONE_KEY) === "1";
     if (!isAdmin || isLoading || seeded.current || alreadySeeded) return;
     if (products && products.length === 0) {
       seeded.current = true;
-      // Mark as seeded immediately so it won't run again even if products are later deleted
       localStorage.setItem(SEED_DONE_KEY, "1");
-      // Seed products sequentially using admin actor directly
+      // Seed to Firestore and localStorage
       const seedAll = async () => {
-        try {
-          const actor = await getAdminActor();
-          for (const product of SAMPLE_PRODUCTS) {
-            try {
-              await actor.createProduct(product);
-            } catch {
-              // Silently fail — product may already exist
-            }
+        for (const product of SAMPLE_PRODUCTS) {
+          try {
+            addLocalProduct(product);
+            await fsCreateProduct(product);
+          } catch {
+            // Silently fail
           }
-          qc.invalidateQueries({ queryKey: ["products"] });
-        } catch {
-          // Silently fail — admin auth may not be available yet
         }
+        qc.invalidateQueries({ queryKey: ["products"] });
       };
       seedAll();
     }

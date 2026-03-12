@@ -72,7 +72,6 @@ const InternetIdentityReactContext = createContext<ProviderValue | undefined>(
 async function createAuthClient(
   createOptions?: AuthClientCreateOptions,
 ): Promise<AuthClient> {
-  const config = await loadConfig();
   const options: AuthClientCreateOptions = {
     idleOptions: {
       // Default behaviour of this hook is not to logout and reload window on identity expiration
@@ -81,7 +80,7 @@ async function createAuthClient(
       ...createOptions?.idleOptions,
     },
     loginOptions: {
-      derivationOrigin: config.ii_derivation_origin,
+      // ii_derivation_origin not used in Firebase mode
     },
     ...createOptions,
   };
