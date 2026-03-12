@@ -14,6 +14,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
 import { useCart } from "../context/CartContext";
 import { useDarkMode } from "../hooks/useDarkMode";
+import { getStoreSettings } from "../utils/storeSettings";
 
 const simpleNavLinks = [
   { to: "/" as const, label: "Home" },
@@ -29,6 +30,10 @@ export default function Navbar() {
   const { totalItems } = useCart();
   const cartActive = currentPath.startsWith("/cart");
   const { isDark, toggle: toggleDark } = useDarkMode();
+  const settings = getStoreSettings();
+  const logoSrc =
+    settings.logoBase64 ||
+    "/assets/generated/ocean-world-logo-transparent.dim_300x300.png";
 
   const isActive = (to: string) =>
     to === "/" ? currentPath === "/" : currentPath.startsWith(to);
@@ -54,7 +59,7 @@ export default function Navbar() {
             className="flex items-center gap-3 group"
           >
             <img
-              src="/assets/generated/ocean-world-logo-transparent.dim_300x300.png"
+              src={logoSrc}
               alt="Ocean World Electronics"
               className="h-10 w-10 object-contain"
             />

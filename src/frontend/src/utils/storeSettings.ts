@@ -11,6 +11,7 @@ export interface StoreSettings {
   paymentUpiPhone: string;
   paymentQrBase64: string;
   heroImageBase64: string;
+  logoBase64: string;
 }
 
 export const DEFAULT_STORE_SETTINGS: StoreSettings = {
@@ -23,6 +24,7 @@ export const DEFAULT_STORE_SETTINGS: StoreSettings = {
   paymentUpiPhone: "",
   paymentQrBase64: "",
   heroImageBase64: "",
+  logoBase64: "",
 };
 
 const STORE_SETTINGS_KEY = "store_settings";

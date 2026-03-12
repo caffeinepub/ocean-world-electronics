@@ -1,4 +1,4 @@
-// This hook is no longer used. Firebase Firestore is the backend now.
+// Stub: ICP actor removed. Using Firebase Firestore instead.
 export function useActor() {
-  return { actor: null, isFetching: false };
+  return { actor: null };
 }

@@ -1,4 +1,6 @@
-import type { Principal } from "@icp-sdk/core/principal";
+// Principal type - simple string alias (ICP removed, using Firebase)
+export type Principal = string;
+
 export interface Some<T> {
     __kind__: "Some";
     value: T;
@@ -36,6 +38,7 @@ export interface Order {
     timestamp: bigint;
     quantity: bigint;
     phone: string;
+    estimatedDelivery?: string;
 }
 export interface UserProfile {
     name: string;
@@ -68,30 +71,7 @@ export enum UserRole {
     guest = "guest"
 }
 export interface backendInterface {
-    assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
-    createProduct(product: Product): Promise<void>;
-    deleteProduct(productId: string): Promise<void>;
-    getAllInquiries(): Promise<Array<Inquiry>>;
-    getAllOrders(): Promise<Array<Order>>;
     getAllProducts(): Promise<Array<Product>>;
-    getCallerUserProfile(): Promise<UserProfile | null>;
-    getCallerUserRole(): Promise<UserRole>;
-    getMonthlySalesSummary(): Promise<Array<MonthlySales>>;
-    getOrdersByPhone(phone: string): Promise<Array<Order>>;
-    getOrdersByStatus(status: OrderStatus): Promise<Array<Order>>;
-    getOrdersCountByStatus(): Promise<Array<[string, bigint]>>;
-    getProduct(productId: string): Promise<Product>;
-    getRecentOrders(limit: bigint): Promise<Array<Order>>;
-    getTopSellingProducts(limit: bigint): Promise<Array<ProductSales>>;
-    getTotalOrdersCount(): Promise<bigint>;
-    getTotalRevenue(): Promise<bigint>;
-    getUserProfile(user: Principal): Promise<UserProfile | null>;
-    initialize(): Promise<void>;
-    isCallerAdmin(): Promise<boolean>;
-    placeOrder(customerName: string, phone: string, address: string, quantity: bigint, productId: string, specialDescription: string): Promise<void>;
-    saveCallerUserProfile(profile: UserProfile): Promise<void>;
-    submitInquiry(name: string, phone: string, message: string): Promise<void>;
-    updateOrderCourierInfo(orderId: string, courierName: string, courierTrackingNumber: string): Promise<void>;
-    updateOrderStatus(orderId: string, newStatus: OrderStatus): Promise<void>;
-    updateProduct(productId: string, updatedProduct: Product): Promise<void>;
+    getAllOrders(): Promise<Array<Order>>;
+    getAllInquiries(): Promise<Array<Inquiry>>;
 }

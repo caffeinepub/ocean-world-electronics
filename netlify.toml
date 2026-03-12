@@ -1,19 +1,11 @@
-# ============================================================
-# netlify.toml - Netlify deployment configuration
-# ============================================================
-# This file tells Netlify:
-#   1. Where the frontend code is (src/frontend)
-#   2. How to build it (npm run build)
-#   3. Where the built files are (dist/)
-#   4. Redirect all routes to index.html (for React Router)
-# ============================================================
-
 [build]
   base    = "src/frontend"
-  command = "npm install && npm run build"
+  command = "npm ci && npm run build"
   publish = "dist"
 
-# Redirect all routes to index.html so React Router works on Netlify
+[build.environment]
+  NODE_VERSION = "18"
+
 [[redirects]]
   from   = "/*"
   to     = "/index.html"

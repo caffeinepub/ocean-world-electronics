@@ -1,8 +1,4 @@
-// This file is kept for compatibility but is no longer used.
-// Firebase Firestore is now the backend (see firebase.ts and firestoreService.ts).
-export async function createActorWithConfig() {
-  return null;
-}
-export async function loadConfig() {
-  return {};
-}
+// Stub: ICP config removed. All backend operations use Firebase Firestore.
+// See: src/services/firestoreService.ts
+export function loadConfig() { return {}; }
+export function createActorWithConfig() { return null; }

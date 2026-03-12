@@ -233,6 +233,7 @@ export default function AdminDashboardPage() {
   const qrFileRef = useRef<HTMLInputElement>(null);
   const productImageFileRef = useRef<HTMLInputElement>(null);
   const heroImageFileRef = useRef<HTMLInputElement>(null);
+  const logoImageFileRef = useRef<HTMLInputElement>(null);
 
   // Admin credentials state
   const [credForm, setCredForm] = useState<AdminCredentials>(() =>
@@ -493,6 +494,22 @@ export default function AdminDashboardPage() {
       setSettingsForm((p) => ({ ...p, paymentQrBase64: result }));
     };
     reader.readAsDataURL(file);
+  }
+
+  // Logo image upload handler
+  function handleLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const result = ev.target?.result as string;
+      const updated = { ...settingsForm, logoBase64: result };
+      setSettingsForm(updated);
+      saveStoreSettings(updated);
+      toast.success("Logo updated successfully!");
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
   }
 
   // Hero image upload handler
@@ -1653,6 +1670,79 @@ export default function AdminDashboardPage() {
                       rows={3}
                       data-ocid="admin.settings.business_hours.textarea"
                     />
+                  </div>
+                </div>
+
+                {/* Logo Image */}
+                <div className="border-t border-border pt-6 mb-6">
+                  <div className="flex items-center gap-2 mb-4">
+                    <Upload className="h-5 w-5 text-ocean-blue" />
+                    <h4 className="font-heading font-semibold text-base text-foreground">
+                      Website Logo
+                    </h4>
+                  </div>
+                  <p className="text-sm text-muted-foreground font-display mb-4">
+                    Upload your business logo. It will appear in the top
+                    navigation bar across the whole website.
+                  </p>
+                  <div className="flex items-start gap-6 flex-wrap">
+                    <div className="flex flex-col gap-2">
+                      <img
+                        src={
+                          settingsForm.logoBase64 ||
+                          "/assets/generated/ocean-world-logo-transparent.dim_300x300.png"
+                        }
+                        alt="Logo preview"
+                        className="w-[80px] h-[80px] object-contain rounded-lg border border-border bg-secondary p-1"
+                      />
+                      <p className="text-xs text-muted-foreground font-display">
+                        Current logo
+                      </p>
+                    </div>
+                    <div className="flex flex-col gap-3">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        ref={logoImageFileRef}
+                        onChange={handleLogoUpload}
+                        className="hidden"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => logoImageFileRef.current?.click()}
+                        className="font-display h-11 border-ocean-blue text-ocean-blue hover:bg-ocean-light"
+                        data-ocid="settings.logo.upload_button"
+                      >
+                        <Upload className="h-4 w-4 mr-2" />
+                        Upload Logo
+                      </Button>
+                      {settingsForm.logoBase64 && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="text-destructive font-display justify-start"
+                          onClick={() => {
+                            const updated = { ...settingsForm, logoBase64: "" };
+                            setSettingsForm(updated);
+                            saveStoreSettings(updated);
+                            toast.success(
+                              "Logo removed. Default logo restored.",
+                            );
+                          }}
+                          data-ocid="settings.logo.delete_button"
+                        >
+                          <X className="h-4 w-4 mr-2" />
+                          Remove Custom Logo
+                        </Button>
+                      )}
+                      <p className="text-xs text-muted-foreground font-display">
+                        Recommended: 200×200px square
+                        <br />
+                        Formats: PNG (transparent), JPG, WebP
+                      </p>
+                    </div>
                   </div>
                 </div>
 
